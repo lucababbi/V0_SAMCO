@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Presentation>
+	<Intro>
+		<datadate>2015/10/30</datadate>
+		<Category>DIVIDEND INDICES </Category>
+		<indexsymbol>SDGGV</indexsymbol>
+		<indexversion>Gross Return</indexversion>
+		<Currency>USD</Currency>
+		<indexname>STOXX&amp;#174; Global Select Dividend 100 Index</indexname>
+		<bm>SXW1GV</bm>
+		<bmindexversion>Gross Return</bmindexversion>
+		<bmCurrency>USD</bmCurrency>
+		<bmname>STOXX&amp;#174; Global 1800 Index</bmname>
+		<risklessrate>Euribor1m</risklessrate>
+		<Startdate_History>31.10.2013</Startdate_History>
+		<Xy>2y</Xy>
+		<S1_RiskReturn>YES</S1_RiskReturn>
+		<S2_IdxFund>YES</S2_IdxFund>
+		<S2_KeyFigures>YES</S2_KeyFigures>
+		<S3_IndAlloc>YES</S3_IndAlloc>
+		<S3_CoAlloc>YES</S3_CoAlloc>
+		<S4_Top10>YES</S4_Top10>
+	</Intro>
+	<Risk_and_return_characteristics>
+		<YTD>-5.17471737</YTD>
+		<YTD_bm>2.58054358</YTD_bm>
+		<Year_1>-5.16639714</Year_1>
+		<Year_1_bm>2.67562543</Year_1_bm>
+		<Year_3>6.54388303</Year_3>
+		<Year_3_bm>12.07197366</Year_3_bm>
+		<Year_5>0</Year_5>
+		<Year_5_bm>9.45575264</Year_5_bm>
+		<Volatility1Y>11.47029828</Volatility1Y>
+		<Volatility1Y_bm>12.66989234</Volatility1Y_bm>
+		<Volatility3Y>9.50176858</Volatility3Y>
+		<Volatility3Y_bm>10.59847967</Volatility3Y_bm>
+		<Volatility5Y>0</Volatility5Y>
+		<Volatility5Y_bm>13.75875166</Volatility5Y_bm>
+		<maximumdrawdown1Y> Placeholder_Maxdrawdown_index </maximumdrawdown1Y>
+		<maximumdrawdown1Y_bm> Placeholder_Maxdrawdown_bm </maximumdrawdown1Y_bm>
+		<sharperatio1Y>-0.4006916457</sharperatio1Y>
+		<sharperatio1Y_bm>0.2988569825</sharperatio1Y_bm>
+	</Risk_and_return_characteristics>
+	<Index_fundamentals>
+		<Dividend_Yield_Flag>Gross</Dividend_Yield_Flag>
+		<Dividend_Yield_footnote>STOXX data as of Oct. 30, 2015 (2) Gross dividend yield is calculated as Gross return index return minus price index return</Dividend_Yield_footnote>
+		<Dividend_Yield>4.18798338</Dividend_Yield>
+		<Dividend_Yield_bm>2.45181971</Dividend_Yield_bm>
+		<PE_Ratio_Trailing_footnote>Including negative values. Trailing period is 12 months</PE_Ratio_Trailing_footnote>
+		<PE_Ratio_Trailing>13.2788414922</PE_Ratio_Trailing>
+		<PE_Ratio_Trailing_bm>20.6779811705</PE_Ratio_Trailing_bm>
+		<PE_Ratio_Projected>14.2662359003</PE_Ratio_Projected>
+		<PE_Ratio_Projected_bm>16.9389415345</PE_Ratio_Projected_bm>
+		<BPS>1.468400432</BPS>
+		<BPS_bm>2.1778459168</BPS_bm>
+		<RPS>1.2040273315</RPS>
+		<RPS_bm>1.4503763937</RPS_bm>
+		<CPS>8.9113147982</CPS>
+		<CPS_bm>10.4576379925</CPS_bm>
+	</Index_fundamentals>
+	<Key_figures>
+		<Number_of_components_index>100</Number_of_components_index>
+		<Number_of_components_bm>1800</Number_of_components_bm>
+		<Market_cap_average_index>1004.10791772</Market_cap_average_index>
+		<Market_cap_average_bm>33491656.5786624</Market_cap_average_bm>
+		<tournover_footnote>Annualized turnover last four quarterly reviews</tournover_footnote>
+		<tournover>19.12111</tournover>
+		<tournover_bm>3.1462</tournover_bm>
+		<Correlation_index_bm>0.8666430375</Correlation_index_bm>
+		<Tracking_error_index_bm>0.0529274449</Tracking_error_index_bm>
+		<Beta_index_bm>0.7773875426</Beta_index_bm>
+	</Key_figures>
+		<supersector>
+			<supersectorname>Utilities</supersectorname>
+			<supersectorweight>0.1630632</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Real Estate</supersectorname>
+			<supersectorweight>0.1404352</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Insurance</supersectorname>
+			<supersectorweight>0.1324203</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Banks</supersectorname>
+			<supersectorweight>0.1071536</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Telecommunications</supersectorname>
+			<supersectorweight>0.0867623</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Oil &amp; Gas</supersectorname>
+			<supersectorweight>0.0731687</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Personal &amp; Household Goods</supersectorname>
+			<supersectorweight>0.0516296</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Industrial Goods &amp; Services</supersectorname>
+			<supersectorweight>0.0493948</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Health Care</supersectorname>
+			<supersectorweight>0.0493148</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Media</supersectorname>
+			<supersectorweight>0.0401081</supersectorweight>
+		</supersector>
+		<country>
+			<countryname>United States</countryname>
+			<countryweight>0.2432325</countryweight>
+		</country>
+		<country>
+			<countryname>Great Britain</countryname>
+			<countryweight>0.1730786</countryweight>
+		</country>
+		<country>
+			<countryname>Singapore</countryname>
+			<countryweight>0.1081159</countryweight>
+		</country>
+		<country>
+			<countryname>Hong Kong</countryname>
+			<countryweight>0.1078834</countryweight>
+		</country>
+		<country>
+			<countryname>Canada</countryname>
+			<countryweight>0.0849231</countryweight>
+		</country>
+		<country>
+			<countryname>Australia</countryname>
+			<countryweight>0.0820191</countryweight>
+		</country>
+		<country>
+			<countryname>Switzerland</countryname>
+			<countryweight>0.0739599</countryweight>
+		</country>
+		<country>
+			<countryname>France</countryname>
+			<countryweight>0.0375569</countryweight>
+		</country>
+		<country>
+			<countryname>Germany</countryname>
+			<countryweight>0.0196182</countryweight>
+		</country>
+		<country>
+			<countryname>Japan</countryname>
+			<countryweight>0.0143297</countryweight>
+		</country>
+		<top10components>
+			<footnote>Based on the composition as of </footnote>
+			<footnotedate>2015/10/30</footnotedate>
+			<top10component>
+				<top10_Component_name>AMLIN</top10_Component_name>
+				<top10_Supersector>Insurance</top10_Supersector>
+				<top10_Country>GB</top10_Country>
+				<top10_mcap>5.15138919626519</top10_mcap>
+				<top10_Weight>0.0204054</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>SAINSBURY (J)</top10_Component_name>
+				<top10_Supersector>Retail</top10_Supersector>
+				<top10_Country>GB</top10_Country>
+				<top10_mcap>5.92562139057277</top10_mcap>
+				<top10_Weight>0.019754</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>SCOTTISH &amp; SOUTHERN ENERGY</top10_Component_name>
+				<top10_Supersector>Utilities</top10_Supersector>
+				<top10_Country>GB</top10_Country>
+				<top10_mcap>23.2330784928427</top10_mcap>
+				<top10_Weight>0.0173274</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>Insurance Australia Group Ltd.</top10_Component_name>
+				<top10_Supersector>Insurance</top10_Supersector>
+				<top10_Country>AU</top10_Country>
+				<top10_mcap>9.73132895543193</top10_mcap>
+				<top10_Weight>0.0166063</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>Ascendas Real Estate Investmen</top10_Component_name>
+				<top10_Supersector>Real Estate</top10_Supersector>
+				<top10_Country>SG</top10_Country>
+				<top10_mcap>3.47534814698908</top10_mcap>
+				<top10_Weight>0.0164097</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>SUNCORP GROUP LTD.</top10_Component_name>
+				<top10_Supersector>Financial Services</top10_Supersector>
+				<top10_Country>AU</top10_Country>
+				<top10_mcap>12.0337834062825</top10_mcap>
+				<top10_Weight>0.0150234</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>SWISS REINSURANCE COMPANY</top10_Component_name>
+				<top10_Supersector>Insurance</top10_Supersector>
+				<top10_Country>CH</top10_Country>
+				<top10_mcap>31.9030113899995</top10_mcap>
+				<top10_Weight>0.01477</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>GLAXOSMITHKLINE</top10_Component_name>
+				<top10_Supersector>Health Care</top10_Supersector>
+				<top10_Country>GB</top10_Country>
+				<top10_mcap>105.551269333218</top10_mcap>
+				<top10_Weight>0.0144695</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>CAPITALAND MALL TRUST MGMT</top10_Component_name>
+				<top10_Supersector>Real Estate</top10_Supersector>
+				<top10_Country>SG</top10_Country>
+				<top10_mcap>3.24601356019197</top10_mcap>
+				<top10_Weight>0.0143228</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>PROVIDENT FINANCIAL</top10_Component_name>
+				<top10_Supersector>Financial Services</top10_Supersector>
+				<top10_Country>GB</top10_Country>
+				<top10_mcap>7.87484584565635</top10_mcap>
+				<top10_Weight>0.0142991</top10_Weight>
+			</top10component>
+		</top10components>
+</Presentation>

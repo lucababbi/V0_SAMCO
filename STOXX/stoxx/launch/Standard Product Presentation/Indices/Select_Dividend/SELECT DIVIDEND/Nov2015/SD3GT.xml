@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Presentation>
+	<Intro>
+		<datadate>2015/10/30</datadate>
+		<Category>DIVIDEND INDICES </Category>
+		<indexsymbol>SD3GT</indexsymbol>
+		<indexversion>Gross Return</indexversion>
+		<Currency>EUR</Currency>
+		<indexname>EURO STOXX&amp;#174; Select Dividend 30 Index</indexname>
+		<bm>SXXGT</bm>
+		<bmindexversion>Gross Return</bmindexversion>
+		<bmCurrency>EUR</bmCurrency>
+		<bmname>EURO STOXX&amp;#174; Index</bmname>
+		<bm2>SXW1GR</bm2>
+		<bm2indexversion>Gross Return</bm2indexversion>
+		<bm2Currency>EUR</bm2Currency>
+		<bm2name>STOXX&amp;#174; Global 1800 Index</bm2name>
+		<risklessrate>Euribor1m</risklessrate>
+		<Startdate_History>29.10.2010</Startdate_History>
+		<Xy>5y</Xy>
+		<S1_RiskReturn>YES</S1_RiskReturn>
+		<S2_IdxFund>YES</S2_IdxFund>
+		<S2_KeyFigures>YES</S2_KeyFigures>
+		<S3_IndAlloc>YES</S3_IndAlloc>
+		<S3_CoAlloc>YES</S3_CoAlloc>
+		<S4_Top10>YES</S4_Top10>
+	</Intro>
+	<Risk_and_return_characteristics>
+		<YTD>13.09708741</YTD>
+		<YTD_bm>16.78067613</YTD_bm>
+		<YTD_bm2>14.15991745</YTD_bm2>
+		<Year_1>13.48874419</Year_1>
+		<Year_1_bm>16.49318573</Year_1_bm>
+		<Year_1_bm2>16.21989863</Year_1_bm2>
+		<Year_3>15.51706646</Year_3>
+		<Year_3_bm>15.99100576</Year_3_bm>
+		<Year_3_bm2>18.06325482</Year_3_bm2>
+		<Year_5>7.36630375</Year_5>
+		<Year_5_bm>8.91987219</Year_5_bm>
+		<Year_5_bm2>14.46227769</Year_5_bm2>
+		<Volatility1Y>19.95199498</Volatility1Y>
+		<Volatility1Y_bm>21.35325919</Volatility1Y_bm>
+		<Volatility1Y_bm2>17.69496246</Volatility1Y_bm2>
+		<Volatility3Y>16.14037222</Volatility3Y>
+		<Volatility3Y_bm>16.91595766</Volatility3Y_bm>
+		<Volatility3Y_bm2>12.92368536</Volatility3Y_bm2>
+		<Volatility5Y>18.64865386</Volatility5Y>
+		<Volatility5Y_bm>19.77747394</Volatility5Y_bm>
+		<Volatility5Y_bm2>13.14057824</Volatility5Y_bm2>
+		<maximumdrawdown1Y> Placeholder_Maxdrawdown_index </maximumdrawdown1Y>
+		<maximumdrawdown1Y_bm> Placeholder_Maxdrawdown_bm </maximumdrawdown1Y_bm>
+		<maximumdrawdown1Y_bm2> Placeholder_Maxdrawdown_bm2 </maximumdrawdown1Y_bm2>
+		<sharperatio1Y>0.7355115303</sharperatio1Y>
+		<sharperatio1Y_bm>0.8145144985</sharperatio1Y_bm>
+		<sharperatio1Y_bm2>0.9556477658</sharperatio1Y_bm2>
+	</Risk_and_return_characteristics>
+	<Index_fundamentals>
+		<Dividend_Yield_Flag>Gross</Dividend_Yield_Flag>
+		<Dividend_Yield_footnote>STOXX data as of Oct. 30, 2015 (2) Gross dividend yield is calculated as Gross return index return minus price index return</Dividend_Yield_footnote>
+		<Dividend_Yield>4.71870942</Dividend_Yield>
+		<Dividend_Yield_bm>3.36074331</Dividend_Yield_bm>
+		<Dividend_Yield_bm2>2.77530677</Dividend_Yield_bm2>
+		<PE_Ratio_Trailing_footnote>Including negative values. Trailing period is 12 months</PE_Ratio_Trailing_footnote>
+		<PE_Ratio_Trailing>13.4955823305</PE_Ratio_Trailing>
+		<PE_Ratio_Trailing_bm>21.5984521974</PE_Ratio_Trailing_bm>
+		<PE_Ratio_Trailing_bm2>20.6779811705</PE_Ratio_Trailing_bm2>
+		<PE_Ratio_Projected>15.1898074601</PE_Ratio_Projected>
+		<PE_Ratio_Projected_bm>15.7464894724</PE_Ratio_Projected_bm>
+		<PE_Ratio_Projected_bm2>16.9389415345</PE_Ratio_Projected_bm2>
+		<BPS>1.6000260751</BPS>
+		<BPS_bm>1.6427293681</BPS_bm>
+		<BPS_bm2>2.1778459168</BPS_bm2>
+		<RPS>0.9571810546</RPS>
+		<RPS_bm>1.0395988035</RPS_bm>
+		<RPS_bm2>1.0395988035</RPS_bm2>
+		<CPS>8.1350539734</CPS>
+		<CPS_bm>8.0661828673</CPS_bm>
+		<CPS_bm2>8.0661828673</CPS_bm2>
+	</Index_fundamentals>
+	<Key_figures>
+		<Number_of_components_index>30</Number_of_components_index>
+		<Number_of_components_bm>290</Number_of_components_bm>
+		<Number_of_components_bm2>1800</Number_of_components_bm2>
+		<Market_cap_average_index>959.30268411</Market_cap_average_index>
+		<Market_cap_average_bm>3715347.10213547</Market_cap_average_bm>
+		<Market_cap_average_bm2>30318796.393654</Market_cap_average_bm2>
+		<tournover_footnote>Annualized turnover last four quarterly reviews</tournover_footnote>
+		<tournover>20.717</tournover>
+		<tournover_bm>3.31662</tournover_bm>
+		<tournover_bm2>3.14621</tournover_bm2>
+		<Correlation_index_bm>0.9650801248</Correlation_index_bm>
+		<Correlation_index_bm2>0.9650801248</Correlation_index_bm2>
+		<Tracking_error_index_bm>0.0443215978</Tracking_error_index_bm>
+		<Tracking_error_index_bm2>0.0443215978</Tracking_error_index_bm2>
+		<Beta_index_bm>0.9208375706</Beta_index_bm>
+		<Beta_index_bm2>0.9208375706</Beta_index_bm2>
+	</Key_figures>
+		<supersector>
+			<supersectorname>Insurance</supersectorname>
+			<supersectorweight>0.191436</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Industrial Goods &amp; Services</supersectorname>
+			<supersectorweight>0.1355473</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Utilities</supersectorname>
+			<supersectorweight>0.1261853</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Oil &amp; Gas</supersectorname>
+			<supersectorweight>0.0965012</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Retail</supersectorname>
+			<supersectorweight>0.0767607</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Telecommunications</supersectorname>
+			<supersectorweight>0.0718378</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Media</supersectorname>
+			<supersectorweight>0.0643843</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Real Estate</supersectorname>
+			<supersectorweight>0.0629643</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Construction &amp; Materials</supersectorname>
+			<supersectorweight>0.0620723</supersectorweight>
+		</supersector>
+		<supersector>
+			<supersectorname>Banks</supersectorname>
+			<supersectorweight>0.0352626</supersectorweight>
+		</supersector>
+		<country>
+			<countryname>France</countryname>
+			<countryweight>0.3035242</countryweight>
+		</country>
+		<country>
+			<countryname>Germany</countryname>
+			<countryweight>0.2147251</countryweight>
+		</country>
+		<country>
+			<countryname>Italy</countryname>
+			<countryweight>0.1365564</countryweight>
+		</country>
+		<country>
+			<countryname>Netherlands</countryname>
+			<countryweight>0.1166585</countryweight>
+		</country>
+		<country>
+			<countryname>Finland</countryname>
+			<countryweight>0.1084914</countryweight>
+		</country>
+		<country>
+			<countryname>Portugal</countryname>
+			<countryweight>0.045264</countryweight>
+		</country>
+		<country>
+			<countryname>Belgium</countryname>
+			<countryweight>0.0395179</countryweight>
+		</country>
+		<country>
+			<countryname>Spain</countryname>
+			<countryweight>0.0352626</countryweight>
+		</country>
+		<top10components>
+			<footnote>Based on the composition as of </footnote>
+			<footnotedate>2015/10/30</footnotedate>
+			<top10component>
+				<top10_Component_name>ENI</top10_Component_name>
+				<top10_Supersector>Oil &amp; Gas</top10_Supersector>
+				<top10_Country>IT</top10_Country>
+				<top10_mcap>39.7631407849979</top10_mcap>
+				<top10_Weight>0.0548047</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>SNAM RETE GAS</top10_Component_name>
+				<top10_Supersector>Utilities</top10_Supersector>
+				<top10_Country>IT</top10_Country>
+				<top10_mcap>10.0049222621242</top10_mcap>
+				<top10_Weight>0.0514897</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>EDP ENERGIAS DE PORTUGAL</top10_Component_name>
+				<top10_Supersector>Utilities</top10_Supersector>
+				<top10_Country>PT</top10_Country>
+				<top10_mcap>8.80045551463615</top10_mcap>
+				<top10_Weight>0.045264</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>ALLIANZ</top10_Component_name>
+				<top10_Supersector>Insurance</top10_Supersector>
+				<top10_Country>DE</top10_Country>
+				<top10_mcap>72.82295</top10_mcap>
+				<top10_Weight>0.0421443</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>TOTAL</top10_Component_name>
+				<top10_Supersector>Oil &amp; Gas</top10_Supersector>
+				<top10_Country>FR</top10_Country>
+				<top10_mcap>106.581763322145</top10_mcap>
+				<top10_Weight>0.0416965</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>SCOR</top10_Component_name>
+				<top10_Supersector>Insurance</top10_Supersector>
+				<top10_Country>FR</top10_Country>
+				<top10_mcap>5.9964930640757</top10_mcap>
+				<top10_Weight>0.0414888</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>PROXIMUS</top10_Component_name>
+				<top10_Supersector>Telecommunications</top10_Supersector>
+				<top10_Country>BE</top10_Country>
+				<top10_mcap>4.41987249753992</top10_mcap>
+				<top10_Weight>0.0395179</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>VIVENDI</top10_Component_name>
+				<top10_Supersector>Media</top10_Supersector>
+				<top10_Country>FR</top10_Country>
+				<top10_mcap>25.6685317051857</top10_mcap>
+				<top10_Weight>0.0391883</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>AXA</top10_Component_name>
+				<top10_Supersector>Insurance</top10_Supersector>
+				<top10_Country>FR</top10_Country>
+				<top10_mcap>51.0302535033352</top10_mcap>
+				<top10_Weight>0.0373914</top10_Weight>
+			</top10component>
+			<top10component>
+				<top10_Component_name>HANNOVER RUECK</top10_Component_name>
+				<top10_Supersector>Insurance</top10_Supersector>
+				<top10_Country>DE</top10_Country>
+				<top10_mcap>6.31549824770704</top10_mcap>
+				<top10_Weight>0.0355036</top10_Weight>
+			</top10component>
+		</top10components>
+</Presentation>
