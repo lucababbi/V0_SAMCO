@@ -2,9 +2,7 @@ import polars as pl
 import pandas as pd
 
 ##################################
-##################################
-# Read Developed/Emerging Universe
-##################################
+#Read Developed/Emerging Universe#
 ##################################
 
 # Select columns to read from the Parquets
@@ -79,4 +77,3 @@ for date in Developed["Date"].unique():
 
     GMSR_Frame = GMSR_Frame.vstack(New_Data)
 
-print(Emerging)
