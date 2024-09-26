@@ -1,11 +1,78 @@
 import polars as pl
 import pandas as pd
 from datetime import date
+import matplotlib.pyplot as plt
 
 ##################################
 ###########Parameters#############
 ##################################
-Starting_Date = date(1997, 3, 24)
+Starting_Date = date(2019, 3, 18)
+Upper_Limit = 1.15
+Lower_Limit = 0.50
+Percentage = 0.85
+Left_Limit = 0.80
+Right_Limit = 0.90
+
+##################################
+###########MatplotLib#############
+##################################
+
+def Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR):
+    # Convert the necessary columns to numpy arrays for plotting
+    X_Axis = TopPercentage.select("CumWeight_Cutoff").to_numpy().flatten()
+    Y_Axis = TopPercentage.select("Full_MCAP_USD_Cutoff").to_numpy().flatten()
+
+    # Convert temp_Country to numpy arrays for plotting
+    X_Axis_Temp = temp_Country.select("CumWeight_Cutoff").to_numpy().flatten()
+    Y_Axis_Temp = temp_Country.select("Full_MCAP_USD_Cutoff").to_numpy().flatten()
+
+    # Create the plot
+    plt.figure(figsize=(12, 8))
+    plt.plot(X_Axis, Y_Axis, marker='o', linestyle='-', color='b')
+    plt.plot(X_Axis_Temp, Y_Axis_Temp, linestyle='-', linewidth = 0.5, color='black', label='Temp Country') 
+
+    # Add horizontal lines for Lower_GMSR and Upper_GMSR
+    plt.axhline(y=Lower_GMSR, color='r', linestyle='solid', label=f'Lower GMSR = {Lower_GMSR}')
+    plt.axhline(y=Upper_GMSR, color='g', linestyle='dotted', label=f'Upper GMSR = {Upper_GMSR}')
+
+    # Add vertical lines at 80%, 85%, and 90%
+    plt.axvline(x=0.80, color='orange', linestyle='--', label='80%')
+    plt.axvline(x=0.85, color='purple', linestyle='--', label='85%')
+    plt.axvline(x=0.90, color='cyan', linestyle='--', label='90%')
+
+    # Adjust limits as needed
+    plt.xlim(0, 1.0)  
+
+    # Add labels and title
+    plt.xlabel("Cumulative Weight (Cutoff)")
+    plt.ylabel("Full MCAP USD (Cutoff)")
+    plt.title("Cumulative Weight vs Full MCAP USD Cutoff")
+
+    # Disable scientific notation on y-axis
+    plt.ticklabel_format(style='plain', axis='y')
+
+    # Optionally, format y-axis tick labels with commas
+    plt.gca().get_yaxis().set_major_formatter(plt.matplotlib.ticker.StrMethodFormatter('{x:,.0f}'))
+
+    # Add label for the last point
+    last_x = X_Axis[-1]
+    last_y = Y_Axis[-1]
+    label = f"Full MCAP: {last_y:,.0f}\nCumWeight: {last_x:.2%}"
+
+    # Adjust the label and arrow to be above the last point for better visibility
+    plt.text(last_x, last_y * 5.45, label, fontsize=9, verticalalignment='bottom', horizontalalignment='right', color='black')
+
+    # Adjust the arrow to point from the middle of the label to the actual point
+    plt.annotate('', xy=(last_x, last_y), xytext=(last_x, last_y * 5.5),
+                 arrowprops=dict(facecolor='black', arrowstyle='->', connectionstyle='arc3,rad=0.3'))
+
+    plt.grid(False)
+    plt.tight_layout()
+    # Save the figure
+    chart_file = f"chart_{TopPercentage['Date'][0]}_{TopPercentage['Country'][0]}.png"
+    plt.savefig(chart_file)
+    plt.close()  # Close the plot to free up memory
+    return chart_file
 
 ##################################
 #Read Developed/Emerging Universe#
@@ -103,11 +170,17 @@ Emerging = (
 # Add FX_Cutoff
 Emerging = Emerging.join(FX_Cutoff, on=["Cutoff", "Currency"], how="left")
 
+##################################
+#########Drop Empty Rows##########
+##################################
+Developed = Developed.filter(~((pl.col("FX_local_to_Index_Currency_Cutoff").is_null()) | (pl.col("Close_unadjusted_local_Cutoff").is_null()) | (pl.col("Shares_Cutoff").is_null())))
+Emerging = Emerging.filter(~((pl.col("FX_local_to_Index_Currency_Cutoff").is_null()) | (pl.col("Close_unadjusted_local_Cutoff").is_null()) | (pl.col("Shares_Cutoff").is_null())))
+
 # Calculate Free/Full MCAP USD for Developed Universe
 Developed = Developed.with_columns(
                                     (pl.col("Free_Float") * pl.col("Capfactor") * pl.col("Close_unadjusted_local_Cutoff") * pl.col("FX_local_to_Index_Currency_Cutoff") * pl.col("Shares_Cutoff"))
                                     .alias("Free_Float_MCAP_USD_Cutoff"),
-                                    (pl.col("Close_unadjusted_local_Cutoff") * pl.col("FX_local_to_Index_Currency_Cutoff") * pl.col("Shares_Cutoff") / (pl.col("Capfactor") * pl.col("Free_Float")))
+                                    (pl.col("Close_unadjusted_local_Cutoff") * pl.col("FX_local_to_Index_Currency_Cutoff") * pl.col("Shares_Cutoff"))
                                     .alias("Full_MCAP_USD_Cutoff")
                                   )
 
@@ -115,11 +188,17 @@ Developed = Developed.with_columns(
 Emerging = Emerging.with_columns(
                                     (pl.col("Free_Float") * pl.col("Capfactor") * pl.col("Close_unadjusted_local_Cutoff") * pl.col("FX_local_to_Index_Currency_Cutoff") * pl.col("Shares_Cutoff"))
                                     .alias("Free_Float_MCAP_USD_Cutoff"),
-                                    (pl.col("Close_unadjusted_local_Cutoff") * pl.col("FX_local_to_Index_Currency_Cutoff") * pl.col("Shares_Cutoff") / (pl.col("Capfactor") * pl.col("Free_Float")))
-                                    .alias("Full_MCAP_USD")
+                                    (pl.col("Close_unadjusted_local_Cutoff") * pl.col("FX_local_to_Index_Currency_Cutoff") * pl.col("Shares_Cutoff"))
+                                    .alias("Full_MCAP_USD_Cutoff")
                                   )
 
-# Creation of main GMSR Frame
+# Check if there is any Free_Float_MCAP_USD_Cutoff Empty
+Emerging = Emerging.filter(pl.col("Free_Float_MCAP_USD_Cutoff") > 0)
+Developed = Developed.filter(pl.col("Free_Float_MCAP_USD_Cutoff") > 0)
+
+###################################
+####Creation of main GMSR Frame####
+###################################
 GMSR_Frame = pl.DataFrame({
                             "Date": pl.Series(dtype=pl.Date),
                             "GMSR_Developed": pl.Series(dtype=pl.Float64),
@@ -132,31 +211,218 @@ GMSR_Frame = pl.DataFrame({
 for date in Developed["Date"].unique():
     temp_Developed = Developed.filter(pl.col("Date") == date)
 
-    temp_Developed = temp_Developed.sort(["Full_MCAP_USD"], descending=True)
+    temp_Developed = temp_Developed.sort(["Full_MCAP_USD_Cutoff"], descending=True)
     temp_Developed = temp_Developed.with_columns(
-                                                    (pl.col("Free_Float_MCAP_USD") / pl.col("Free_Float_MCAP_USD").sum()).alias("Weight")
+                                                    (pl.col("Free_Float_MCAP_USD_Cutoff") / pl.col("Free_Float_MCAP_USD_Cutoff").sum()).alias("Weight_Cutoff")
     )
 
     temp_Developed = temp_Developed.with_columns(
-                                                    (pl.col("Weight").cum_sum()).alias("CumWeight")
+                                                    (pl.col("Weight_Cutoff").cum_sum()).alias("CumWeight_Cutoff")
     )
 
     New_Data = pl.DataFrame({
                                 "Date": [date],
-                                "GMSR_Developed": [temp_Developed.filter(pl.col("CumWeight") >= 0.85).head(1)["Full_MCAP_USD"].to_numpy()[0]],
-                                "GMSR_Emerging": [temp_Developed.filter(pl.col("CumWeight") >= 0.85).head(1)["Full_MCAP_USD"].to_numpy()[0] / 2],
-                                "GMSR_Emerging_Upper": [temp_Developed.filter(pl.col("CumWeight") >= 0.85).head(1)["Full_MCAP_USD"].to_numpy()[0] / 2 * 1.15],
-                                "GMSR_Emerging_Lower": [temp_Developed.filter(pl.col("CumWeight") >= 0.85).head(1)["Full_MCAP_USD"].to_numpy()[0] / 2 * 0.50],
+                                "GMSR_Developed": [temp_Developed.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff"].to_numpy()[0]],
+                                "GMSR_Emerging": [temp_Developed.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff"].to_numpy()[0] / 2],
+                                "GMSR_Emerging_Upper": [temp_Developed.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff"].to_numpy()[0] / 2 * Upper_Limit],
+                                "GMSR_Emerging_Lower": [temp_Developed.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff"].to_numpy()[0] / 2 * Lower_Limit],
     })
 
     GMSR_Frame = GMSR_Frame.vstack(New_Data)
 
+###################################
+#####Filtering from StartDate######
+###################################
+Emerging = Emerging.filter(pl.col("Date") >= Starting_Date)
+
 #################################
 ##Start the Size Classification##
 #################################
-for date, country in Emerging.select(["Date", "Country"]).unique().sort(["Date", "Country"]).iter_rows():
+Output_Standard_Index = pl.DataFrame({
+    "Date": pl.Series([], dtype=pl.Date),
+    "Internal_Number": pl.Series([], dtype=pl.Utf8),
+    "Instrument_Name": pl.Series([], dtype=pl.Utf8),
+    "Country": pl.Series([], dtype=pl.Utf8),
+    "Full_MCAP_USD_Cutoff": pl.Series([], dtype=pl.Float64),
+    "Weight_Cutoff": pl.Series([], dtype=pl.Float64),
+    "CumWeight_Cutoff": pl.Series([], dtype=pl.Float64),
+    "Size": pl.Series([], dtype=pl.Utf8),
+    "Case": pl.Series([], dtype=pl.Utf8)
+})
 
-  if date == Starting_Date: # First Review Date where Standard Index is created
-    temp_Country = Emerging.filter((pl.col("Date") == date) & (pl.col("Country") == country))
+Output_File = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\TopPercentage_Report.xlsx"
+with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
+    for date, country in Emerging.select(["Date", "Country"]).unique().sort(["Date", "Country"]).iter_rows():
+        
+        # Retrieve the current Bounds
+        Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+        Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+        
+        # First Review Date where Standard Index is created
+        if date == Starting_Date: 
+            temp_Country = Emerging.filter((pl.col("Date") == date) & (pl.col("Country") == country))
 
-    # Sort in each Country the Companies by Full MCAP USD Cutoff
+            # Sort in each Country the Companies by Full MCAP USD Cutoff
+            temp_Country = temp_Country.sort("Full_MCAP_USD_Cutoff", descending=True)
+
+            # Calculate their CumWeight_Cutoff
+            temp_Country = temp_Country.with_columns(
+                            (pl.col("Free_Float_MCAP_USD_Cutoff") / pl.col("Free_Float_MCAP_USD_Cutoff").sum()).alias("Weight_Cutoff"),
+                            (((pl.col("Free_Float_MCAP_USD_Cutoff") / pl.col("Free_Float_MCAP_USD_Cutoff").sum()).cum_sum())).alias("CumWeight_Cutoff")
+            )
+
+            # Check where the top 85% (crossing it) lands us on the Curve
+            TopPercentage = temp_Country.select(["Date", "Internal_Number", "Instrument_Name", "Country", "Full_MCAP_USD_Cutoff", "Weight_Cutoff", "CumWeight_Cutoff"]).filter(
+                                    pl.col("CumWeight_Cutoff") < Percentage).vstack(temp_Country.select(["Date", "Internal_Number", "Instrument_Name", "Country",
+                                    "Full_MCAP_USD_Cutoff", "Weight_Cutoff", "CumWeight_Cutoff"]).filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1))
+            
+            #################
+            # Case Analysis #
+            #################
+
+            # Best case where we land inside the box # 
+            if (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff").to_numpy()[0][0] >= Lower_GMSR) & (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff").to_numpy()[0][0] <= Upper_GMSR):
+
+                # Check how different is the CumWeight from Target Coverage
+                TopPercentage = TopPercentage.with_columns(
+                                            (abs(pl.col("CumWeight_Cutoff") - Percentage)).alias("CumWeight_Cutoff_Difference")
+                )
+
+                # Check if CumWeight of the Company right across the Upper GMSR is > 90%
+                if TopPercentage.tail(1).select(pl.col("CumWeight_Cutoff")).to_numpy()[0][0] > Right_Limit:
+                    next
+
+                # If CumWeight of the Company right across the Upper GMSR is <= 90%:
+                elif TopPercentage.tail(1).select(pl.col("CumWeight_Cutoff")).to_numpy()[0][0] <= Right_Limit:
+                    # Filter by keeping only the closest CumWeight near to Percentage
+                    TopPercentage = TopPercentage.head(TopPercentage["CumWeight_Cutoff_Difference"].arg_min() + 1)
+
+                TopPercentage = TopPercentage.with_columns(
+                                            pl.lit("Standard").alias("Size")
+                                    ).drop("CumWeight_Cutoff_Difference")
+                
+                TopPercentage = TopPercentage.with_columns(
+                                            pl.lit("Inside").alias("Case")
+                )
+
+                # Stack to Output_Standard_Index
+                Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage)
+
+                # Save DataFrame to Excel
+                TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+
+                # Create and save the chart
+                chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
+
+                # Insert the chart into the Excel file
+                workbook = writer.book
+                worksheet = writer.sheets[f'{date}_{country}']
+                worksheet.insert_image('H2', chart_file)
+
+            # Case where we land below the box
+            elif (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff").to_numpy()[0][0] < Lower_GMSR):
+                # Keep only Companies whose Full_MCAP_USD_Cutoff is at least equal or higher than Lowe GMSR
+                TopPercentage = TopPercentage.filter(pl.col("Full_MCAP_USD_Cutoff") >= Lower_GMSR)
+
+                # In this case we do not care about the CumWeight_Cutoff
+                TopPercentage = TopPercentage.with_columns(
+                                            pl.lit("Standard").alias("Size")
+                                    )
+                
+                TopPercentage = TopPercentage.with_columns(
+                                            pl.lit("Below").alias("Case")
+                )
+
+                # Stack to Output_Standard_Index
+                Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage)
+
+                                # Save DataFrame to Excel
+                TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+
+                # Create and save the chart
+                chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
+
+                # Insert the chart into the Excel file
+                workbook = writer.book
+                worksheet = writer.sheets[f'{date}_{country}']
+                worksheet.insert_image('H2', chart_file)
+
+            # Case where we land above the box
+            elif (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff").to_numpy()[0][0] > Upper_GMSR):
+
+                # Check if there are still Companies in between the Upper and Lower GMSR
+                if len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff") >= Lower_GMSR))) > 0:
+
+                    TopPercentage_Extension = temp_Country.filter(pl.col("Full_MCAP_USD_Cutoff") >= Upper_GMSR).sort("Full_MCAP_USD_Cutoff",
+                        descending=True).filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number")))).select(
+                            ["Date", "Internal_Number", "Instrument_Name", "Country", "Full_MCAP_USD_Cutoff", "Weight_Cutoff", "CumWeight_Cutoff"]).vstack(
+                                temp_Country.filter(pl.col("Full_MCAP_USD_Cutoff") < Upper_GMSR).sort("Full_MCAP_USD_Cutoff",
+                        descending=True).filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number")))).select(
+                            ["Date", "Internal_Number", "Instrument_Name", "Country", "Full_MCAP_USD_Cutoff", "Weight_Cutoff", "CumWeight_Cutoff"]).head(1)
+                            )
+                    
+                    TopPercentage = TopPercentage.with_columns(
+                                            pl.lit("Standard").alias("Size")
+                                    )
+                    
+                    TopPercentage_Extension = TopPercentage_Extension.with_columns(
+                                            pl.lit("Standard").alias("Size")
+                                    )
+                    
+                    # Merge the initial Frame with the additions
+                    TopPercentage = TopPercentage.vstack(TopPercentage_Extension)
+
+                    TopPercentage = TopPercentage.with_columns(
+                                            pl.lit("Above - Companies in between Upper and Lower GMSR").alias("Case")
+                            )
+                    
+                    # Stack to Output_Standard_Index
+                    Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage)
+
+                    # Save DataFrame to Excel
+                    TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+
+                    # Create and save the chart
+                    chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
+
+                    # Insert the chart into the Excel file
+                    workbook = writer.book
+                    worksheet = writer.sheets[f'{date}_{country}']
+                    worksheet.insert_image('H2', chart_file)
+
+                # Case where we do not have any company in between the Upper and Lower GMSR
+                elif len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff") >= Lower_GMSR))) == 0:
+                    # Try to get as close as possible to Upper GMSR
+                    TopPercentage_Extension = temp_Country.filter(pl.col("Full_MCAP_USD_Cutoff") >= Lower_GMSR).sort("Full_MCAP_USD_Cutoff", descending=True,
+                                                ).filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number")))).select(
+                                                ["Date", "Internal_Number", "Instrument_Name", "Country", "Full_MCAP_USD_Cutoff", "Weight_Cutoff", "CumWeight_Cutoff"])
+                    
+                    TopPercentage = TopPercentage.with_columns(
+                                            pl.lit("Standard").alias("Size")
+                                    )
+                    
+                    TopPercentage_Extension = TopPercentage_Extension.with_columns(
+                                            pl.lit("Standard").alias("Size")
+                                    )
+                    
+                    # Merge the initial Frame with the additions
+                    TopPercentage = TopPercentage.vstack(TopPercentage_Extension)
+
+                    
+                    TopPercentage = TopPercentage.with_columns(
+                                            pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case")
+                            )
+                    
+                    # Stack to Output_Standard_Index
+                    Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage)
+
+                    # Save DataFrame to Excel
+                    TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+
+                    # Create and save the chart
+                    chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
+
+                    # Insert the chart into the Excel file
+                    workbook = writer.book
+                    worksheet = writer.sheets[f'{date}_{country}']
+                    worksheet.insert_image('H2', chart_file)
