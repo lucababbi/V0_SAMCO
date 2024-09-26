@@ -70,8 +70,8 @@ Developed = (
         "shares": "Shares_Cutoff",
         "currency": "Currency"
     })
-).join(pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Securities_Cutoff\FX_Cutoff.parquet").with_columns(
-   pl.col("Cutoff").cast(pl.Date)), left_on=["Cutoff", "Currency"], right_on=["Cutoff", "frm_currency"], how="left")
+).join(pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Securities_Cutoff\FX_Historical.parquet").with_columns(
+   pl.col("Cutoff").cast(pl.Date)), left_on=["Cutoff", "Currency"], right_on=["Cutoff", "Currency"], how="left")
 
 Emerging = (
     Emerging
