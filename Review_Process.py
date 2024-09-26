@@ -50,6 +50,10 @@ Securities_Cutoff = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Pro
                         pl.col("Cutoff").cast(pl.Utf8).str.strptime(pl.Date, "%m/%d/%Y")
                       ), left_on="validDate", right_on="Cutoff", how="left")
 
+FX_Cutoff = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Securities_Cutoff\FX_Historical.parquet").with_columns(
+                            pl.col("Cutoff").cast(pl.Date)
+)
+
 # Add these information to the Developed and Emerging Universes
 Developed = (
     Developed
@@ -70,8 +74,10 @@ Developed = (
         "shares": "Shares_Cutoff",
         "currency": "Currency"
     })
-).join(pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Securities_Cutoff\FX_Historical.parquet").with_columns(
-   pl.col("Cutoff").cast(pl.Date)), left_on=["Cutoff", "Currency"], right_on=["Cutoff", "Currency"], how="left")
+)
+
+# Add FX_Cutoff
+Developed = Developed.join(FX_Cutoff, on=["Cutoff", "Currency"], how="left")
 
 Emerging = (
     Emerging
@@ -93,6 +99,9 @@ Emerging = (
         "currency": "Currency"
     })
 )
+
+# Add FX_Cutoff
+Emerging = Emerging.join(FX_Cutoff, on=["Cutoff", "Currency"], how="left")
 
 # Calculate Free/Full MCAP USD for Developed Universe
 Developed = Developed.with_columns(
