@@ -300,6 +300,24 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
     return TopPercentage
 
 ##################################
+########Index Rebalancing#########
+##################################
+
+def Index_Rebalancing_Box():
+    temp_Country = temp_Emerging_Aggregate.filter((pl.col("Date") == date) & (pl.col("Country") == country))
+
+    # Sort in each Country the Companies by Full MCAP USD Cutoff
+    temp_Country = temp_Country.sort("Full_MCAP_USD_Cutoff_Company", descending=True)
+
+    # Calculate their CumWeight_Cutoff
+    temp_Country = temp_Country.with_columns(
+                    (pl.col("Free_Float_MCAP_USD_Cutoff_Company") / pl.col("Free_Float_MCAP_USD_Cutoff_Company").sum()).alias("Weight_Cutoff"),
+                    (((pl.col("Free_Float_MCAP_USD_Cutoff_Company") / pl.col("Free_Float_MCAP_USD_Cutoff_Company").sum()).cum_sum())).alias("CumWeight_Cutoff")
+    )
+
+    # 
+
+##################################
 #Read Developed/Emerging Universe#
 ##################################
 
@@ -557,5 +575,14 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
 
             # Following Reviews where Index is rebalanced
             else:
-            Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
-            Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+                Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+                Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+
+                # Check if there is already a previous Index creation for the current country
+                if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") < date))) > 0:
+
+                    TopPercentage
+                
+                # If there is no composition, a new Index will be created
+                else:
+                    TopPercentage = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
