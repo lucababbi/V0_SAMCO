@@ -303,19 +303,62 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
 ########Index Rebalancing#########
 ##################################
 
-def Index_Rebalancing_Box():
+def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer):
     temp_Country = temp_Emerging_Aggregate.filter((pl.col("Date") == date) & (pl.col("Country") == country))
 
     # Sort in each Country the Companies by Full MCAP USD Cutoff
     temp_Country = temp_Country.sort("Full_MCAP_USD_Cutoff_Company", descending=True)
 
+    # Check for Companies that are still alive
+    temp_Country = temp_Country.filter(pl.col("Internal_Number").is_in(SW_ACALLCAP.filter(pl.col("Review") == date).select(pl.col("Internal_Number")).to_series()))
+
     # Calculate their CumWeight_Cutoff
     temp_Country = temp_Country.with_columns(
                     (pl.col("Free_Float_MCAP_USD_Cutoff_Company") / pl.col("Free_Float_MCAP_USD_Cutoff_Company").sum()).alias("Weight_Cutoff"),
                     (((pl.col("Free_Float_MCAP_USD_Cutoff_Company") / pl.col("Free_Float_MCAP_USD_Cutoff_Company").sum()).cum_sum())).alias("CumWeight_Cutoff")
-    )
+    ).sort("Full_MCAP_USD_Cutoff_Company", descending=True)
 
-    # 
+    # Get the previous newest date from the already created Index
+    Previous_Creation_Index_Date = Output_Count_Standard_Index.select(pl.col("Date").max()).to_series()[0]
+
+    # Check the number selected in the previous Index
+    Company_Selection_Count = Output_Count_Standard_Index.filter((pl.col("Date") == Previous_Creation_Index_Date) & (pl.col("Country") == country)).select(pl.col("Count")).to_numpy()[0][0]
+
+    # Check where X number of Companies lands us on the Curve
+    TopPercentage = temp_Country.head(Company_Selection_Count)
+
+    #################
+    # Case Analysis #
+    #################
+
+    # Best case where we land inside the box # 
+    if (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Lower_GMSR) & (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] <= Upper_GMSR):
+        
+        # Check that the Curve is in the desired target coverage
+        if Left_Limit <= TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] <= Right_Limit:
+
+            TopPercentage = TopPercentage.with_columns(
+                                        pl.lit("Standard").alias("Size")
+                                )
+            
+            TopPercentage = TopPercentage.with_columns(
+                                        pl.lit("Inside").alias("Case")
+            )
+
+            # Check for Country_Cutoff
+            TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
+
+        # If we are inside the Upper and Lower GMSR but below the target coverage
+        elif Left_Limit > TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0]:
+
+            TopPercentage
+
+        # If we are inside the Upper and Lower GMSR but above the target coverage
+        elif Right_Limit < TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0]:
+
+            TopPercentage
+        
+        return TopPercentage
 
 ##################################
 #Read Developed/Emerging Universe#
@@ -350,6 +393,15 @@ Entity_ID = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SA
                             "RELATIONSHIP_VALID_FROM", "RELATIONSHIP_VALID_TO"])).with_columns(
                                 pl.col("RELATIONSHIP_VALID_FROM").cast(pl.Date()),
                                 pl.col("RELATIONSHIP_VALID_TO").cast(pl.Date()))
+
+# SW AC ALLCAP for check on Cutoff
+SW_ACALLCAP = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\STXWAGV_Cutoff.parquet").with_columns([
+                                pl.col("Date").cast(pl.Date),
+                                pl.col("Mcap_Units_Index_Currency").cast(pl.Float64)
+]).filter(pl.col("Mcap_Units_Index_Currency") > 0).join(pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Dates\Review_Date-QUARTERLY.csv").with_columns(
+                        pl.col("Review").cast(pl.Utf8).str.strptime(pl.Date, "%m/%d/%Y"),
+                        pl.col("Cutoff").cast(pl.Utf8).str.strptime(pl.Date, "%m/%d/%Y")
+                      ), left_on="Date", right_on="Cutoff", how="left")
 
 # Add ENTITY_QID to main Frames
 Developed = Developed.join(
@@ -575,13 +627,23 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
 
             # Following Reviews where Index is rebalanced
             else:
+
                 Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
                 Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
 
                 # Check if there is already a previous Index creation for the current country
                 if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") < date))) > 0:
 
-                    TopPercentage
+                    TopPercentage = Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+
+                    # Stack to Output_Standard_Index
+                    Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
+                    
+                    # Create the Output_Count_Standard_Index for future rebalacing
+                    Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
+                        pl.len().alias("Count"),
+                        pl.col("Date").first().alias("Date")
+                    ).sort("Count", descending=True))
                 
                 # If there is no composition, a new Index will be created
                 else:
