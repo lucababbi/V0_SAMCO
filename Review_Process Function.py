@@ -15,7 +15,7 @@ Left_Limit = 0.80
 Right_Limit = 0.90
 
 Excel_Recap = False
-Output_File = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\TopPercentage_Report.xlsx"
+Output_File = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\TopPercentage_Report_Rebalancing.xlsx"
 
 ##################################
 #######Equity Minimum Size########
@@ -149,13 +149,13 @@ def Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR):
 ##########Deletion Rule###########
 ##################################
 
-def Deletion_Rule_Inside_Bounds(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Limit, Upper_Limit):
+def Deletion_Rule(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Limit, Upper_Limit):
 
     # Calculate Maximum # of Companies that can be deleted
     Maximum_Deletion = int(round(len(TopPercentage) * 0.05))
 
     # In case the nearest Integer is 0, adjust it to 2
-    if Maximum_Deletion == 0: Maximum_Deletion = 2
+    if (Maximum_Deletion < 2): Maximum_Deletion = 2
 
     # Declare initial number of Companies to be deleted
     Companies_To_Delete = 1
@@ -178,16 +178,25 @@ def Deletion_Rule_Inside_Bounds(TopPercentage, temp_Country, Left_Limit, Right_L
         # Assign the new trimmed Frame to the original TopPercentage
         TopPercentage = TopPercentage_Trimmed
 
+                    
+        TopPercentage = TopPercentage.with_columns(
+                                            pl.lit("Below - Companies in between Upper and Lower GMSR").alias("Case")
+                )
+
     # If there are no Companies in between Left and Right Limit
     else:
 
         # Iterate and check the condition, allowing for a minimum of 1 if the condition is met
         while Companies_To_Delete <= Maximum_Deletion:
             
-            if TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] >= Left_Limit:
+            if (TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] < TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0]) & \
+                (TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] >= Right_Limit):
+
                 # If CumWeight_Cutoff is still above or equal to Left_Limit, proceed
-                TopPercentage_Trimmed = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
-                break  # Break the loop once the condition is met
+                TopPercentage = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
+
+                # Try to increase Companies_To_Delete by 1 (up to the rounded 5% cap)
+                Companies_To_Delete += 1
 
             else:
                 # If the CumWeight_Cutoff falls below Left_Limit, stop increasing Companies_To_Delete
@@ -195,9 +204,32 @@ def Deletion_Rule_Inside_Bounds(TopPercentage, temp_Country, Left_Limit, Right_L
                 print("Reached below Left_Limit. Stopping deletion.")
                 break
 
-            # Try to increase Companies_To_Delete by 1 (up to the rounded 5% cap)
-            Companies_To_Delete += 1
+        TopPercentage = TopPercentage.with_columns(
+                                            pl.lit("Below - Companies in between Upper and Lower GMSR").alias("Case")
+                                                  )
      
+    # Check if last Company Full_MCAP_USD_Cutoff is below Lower_GMSR
+    if TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] < Lower_GMSR:
+        # Calculate Maximum # of Companies that can be deleted  
+        Maximum_Deletion = int(round(len(TopPercentage) * 0.20))
+
+        # In case the nearest Integer is 0, adjust it to 2
+        if (Maximum_Deletion < 2): Maximum_Deletion = 2
+
+        # Declare initial number of Companies to be deleted
+        Companies_To_Delete = 1
+
+        # Iterate and check the condition, allowing for a minimum of 1 if the condition is met
+        while Companies_To_Delete <= Maximum_Deletion:
+            if TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Lower_GMSR:
+                # If CumWeight_Cutoff is still above or equal to Left_Limit, proceed
+                TopPercentage = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
+                break  # Break the loop once the condition is met
+
+            else:
+                # Try to increase Companies_To_Delete by 1 (up to the rounded 20% cap)
+                Companies_To_Delete += 1
+
     return TopPercentage
     
 ##################################
@@ -290,10 +322,10 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
                                     pl.lit("Inside").alias("Case")
         )
 
-        # Save DataFrame to Excel
-        TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-
         if Excel_Recap == True:
+
+            # Save DataFrame to Excel
+            TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
             # Create and save the chart
             chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
 
@@ -316,10 +348,10 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
                                     pl.lit("Below").alias("Case")
         )
 
-        # Save DataFrame to Excel
-        TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-
         if Excel_Recap == True:
+
+            # Save DataFrame to Excel
+            TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
             # Create and save the chart
             chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
 
@@ -358,10 +390,10 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
                                     pl.lit("Above - Companies in between Upper and Lower GMSR").alias("Case")
                     )
 
-            # Save DataFrame to Excel
-            TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-
             if Excel_Recap == True:
+
+                # Save DataFrame to Excel
+                TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
                 # Create and save the chart
                 chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
 
@@ -394,11 +426,10 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
                                     pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case")
                     )
             
-            # Save DataFrame to Excel
-            TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-
             if Excel_Recap == True:
 
+                # Save DataFrame to Excel
+                TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
                 # Create and save the chart
                 chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
 
@@ -467,7 +498,9 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
         elif Left_Limit > TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0]:  #TODO To be Reviewed
 
             # Check if there are Companies in between the Upper and Lower GMSR
-            if len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff_Company") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR))) > 0:
+            if len(temp_Country.filter((pl.col("CumWeight_Cutoff") <= Right_Limit) & \
+                                       (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR) & \
+                                        (~pl.col("Internal_Number").is_in(TopPercentage.select("Internal_Number"))))) > 0:
 
                 TopPercentage_Extension = (
                     temp_Country
@@ -489,27 +522,26 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
                 )
 
                 TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Standard").alias("Size")
+                                    pl.lit("Addition").alias("Size")
                             )
             
                 TopPercentage_Extension = TopPercentage_Extension.with_columns(
-                                        pl.lit("Standard").alias("Size")
+                                        pl.lit("Addition").alias("Size")
                             )
                 
                 # Merge the initial Frame with the additions
-                TopPercentage = TopPercentage.vstack(TopPercentage_Extension)
+                TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))
 
                 TopPercentage = TopPercentage.with_columns(
                                         pl.lit("Above - Companies in between Upper and Lower GMSR").alias("Case")
                             )
 
-            # Check if there are no Companies in between the Upper and Lower GMSR 
-            elif len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff_Company") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR))) == 0:
-
+            # There are no Companies in between the Upper and Lower GMSR and with a CumWeight higher than Left_Limit
+            else:
                 # Add as many Companies as possible to get closer to Left_Limit
                 TopPercentage_Extension = (
                     temp_Country
-                    .filter((pl.col("Full_MCAP_USD_Cutoff_Company") >= Upper_GMSR) & (pl.col("CumWeight_Cutoff") <= Left_Limit))
+                    .filter((pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR) & (pl.col("CumWeight_Cutoff") <= Right_Limit))
                     .sort("Full_MCAP_USD_Cutoff_Company", descending=True)
                     .filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number"))))
                     .select([
@@ -526,18 +558,18 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
                 )
 
                 TopPercentage = TopPercentage.with_columns(
-                            pl.lit("Standard").alias("Size")
+                            pl.lit("Addition").alias("Size")
                     )
                 
                 TopPercentage_Extension = TopPercentage_Extension.with_columns(
-                        pl.lit("Standard").alias("Size")
+                        pl.lit("Addition").alias("Size")
                     )
                 
                 # Merge the initial Frame with the additions
-                TopPercentage = TopPercentage.vstack(TopPercentage_Extension)
+                TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage))
             
                 TopPercentage = TopPercentage.with_columns(
-                                            pl.lit("Inside").alias("Case")
+                                            pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case")
                 )
                 
         ############
@@ -548,10 +580,14 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
         elif Right_Limit < TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0]: # TODO To be Reviewed
 
             # Apply the Deletion Rule according to the Case if there Companies in between the Boundaries (GMSR & Coverage)
-            TopPercentage = Deletion_Rule_Inside_Bounds(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Limit, Upper_Limit)
+            TopPercentage = Deletion_Rule(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Limit, Upper_Limit)
+
+            TopPercentage = TopPercentage.with_columns(
+                        pl.lit("Deletion").alias("Size")
+                    )
 
     # Case where we land above the box #
-    elif TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Upper_GMSR:
+    elif TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] > Upper_GMSR:
 
         # Check if there are Companies in between the Upper and Lower GMSR
         if len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff_Company") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR))) > 0:
@@ -597,7 +633,7 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
                             )
             
             TopPercentage_Extension = TopPercentage_Extension.with_columns(
-                                    pl.lit("Standard").alias("Size")
+                                    pl.lit("Addition").alias("Size")
                             )
             
             # Merge the initial Frame with the additions
@@ -609,8 +645,47 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
 
             # Save DataFrame to Excel
             TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+
+        # In case there are no Companies in between the Upper and Lower GMSR
+        elif len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff_Company") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR))) == 0:
+            TopPercentage_Extension = (
+                temp_Country
+                .filter((pl.col("Full_MCAP_USD_Cutoff_Company") >= Upper_GMSR) & (pl.col("CumWeight_Cutoff") >= Left_Limit))
+                .sort("Full_MCAP_USD_Cutoff_Company", descending=True)
+                .filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number"))))
+                .select([
+                    "Date", 
+                    "Internal_Number", 
+                    "Instrument_Name", 
+                    "ENTITY_QID", 
+                    "Country", 
+                    "Free_Float_MCAP_USD_Cutoff_Company", 
+                    "Full_MCAP_USD_Cutoff_Company", 
+                    "Weight_Cutoff", 
+                    "CumWeight_Cutoff"
+                ]))
+            
+            TopPercentage_Extension = TopPercentage_Extension.with_columns(
+                                    pl.lit("Addition").alias("Size")
+                            )
+            
+            # Merge the initial Frame with the additions
+            TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))
+
+            TopPercentage = TopPercentage.with_columns(
+                                    pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case")
+                    )
         
-    return TopPercentage
+    # Case where we below above the box #
+    elif TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] < Lower_GMSR:
+        # Apply the Deletion Rule according to the Case if there Companies in between the Boundaries (GMSR & Coverage)
+        TopPercentage = Deletion_Rule(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Limit, Upper_Limit)
+
+        TopPercentage = TopPercentage.with_columns(
+                        pl.lit("Deletion").alias("Size")
+                    )
+    
+    return TopPercentage, temp_Country
 
 ##################################
 #Read Developed/Emerging Universe#
@@ -791,8 +866,10 @@ Emerging_Aggregate = Emerging.select(pl.col(["Date", "Internal_Number", "Instrum
 ###################################
 ##########Apply EMS Screen#########
 ###################################
-Developed_Aggregate = Equity_Minimum_Size(Developed_Aggregate)
-Emerging_Aggregate = Equity_Minimum_Size(Emerging_Aggregate)
+Developed_Aggregate = Equity_Minimum_Size(Developed_Aggregate).select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
+                                                                              "Free_Float_MCAP_USD_Cutoff_Company", "Full_MCAP_USD_Cutoff_Company"]))
+Emerging_Aggregate = Equity_Minimum_Size(Emerging_Aggregate).select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
+                                                                              "Free_Float_MCAP_USD_Cutoff_Company", "Full_MCAP_USD_Cutoff_Company"]))
 
 ###################################
 ####Creation of main GMSR Frame####
@@ -895,10 +972,22 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 # Check if there is already a previous Index creation for the current country
                 if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") < date))) > 0:
 
-                    TopPercentage = Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+                    TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
 
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
                     TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
+
+                    if Excel_Recap == True:
+
+                        # Save DataFrame to Excel
+                        TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+                        # Create and save the chart
+                        chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
+
+                        # Insert the chart into the Excel file
+                        workbook = writer.book
+                        worksheet = writer.sheets[f'{date}_{country}']
+                        worksheet.insert_image('H2', chart_file)
 
                     # Stack to Output_Standard_Index
                     Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
