@@ -79,6 +79,38 @@ def Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR):
     return chart_file
 
 ##################################
+##########Deletion Rule###########
+##################################
+
+def Deletion_Rule_Inside_Bounds(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Limit, Upper_Limit):
+
+    # Calculate Maximum # of Companies that can be deleted
+    Maximum_Deletion = int(round(len(TopPercentage) * 0.05))
+
+    # In case the nearest Integer is 0, adjust it to 2
+    if Maximum_Deletion == 0: Maximum_Deletion = 2
+
+    # Declare initial number of Companies to be deleted
+    Companies_To_Delete = 1
+
+    # Check if there are Companies in between Left and Right Limit
+    if len(TopPercentage.filter((pl.col("CumWeight_Cutoff") >= Left_Limit) & pl.col("CumWeight_Cutoff") <= Right_Limit)) > 0:
+           
+        # Iterate and check the condition, allowing for a minimum of 1 if the condition is met
+        while Companies_To_Delete <= Maximum_Deletion:
+            if Left_Limit <= TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] <= Right_Limit:
+
+                # If removing Companies lands us inside the CumWeight Right_Limit, we allow Companies_To_Delete to be 1
+                TopPercentage_Trimmed = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
+                break  # Break the loop once the condition is met
+
+            else: 
+                # Try to increase Companies_To_Delete by 1 (up to the rounded 5% cap)
+                Companies_To_Delete += 1
+     
+    return TopPercentage
+    
+##################################
 ##Minimum FreeFloatCountry Level##
 ##################################
 
@@ -226,7 +258,7 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
                     ["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company",
                     "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff"]).head(1)
                     )
-            
+
             TopPercentage = TopPercentage.with_columns(
                                     pl.lit("Standard").alias("Size")
                             )
@@ -319,7 +351,7 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
     ).sort("Full_MCAP_USD_Cutoff_Company", descending=True)
 
     # Get the previous newest date from the already created Index
-    Previous_Creation_Index_Date = Output_Count_Standard_Index.select(pl.col("Date").max()).to_series()[0]
+    Previous_Creation_Index_Date = Output_Count_Standard_Index.filter(pl.col("Country") == country).select(pl.col("Date").max()).to_series()[0]
 
     # Check the number selected in the previous Index
     Company_Selection_Count = Output_Count_Standard_Index.filter((pl.col("Date") == Previous_Creation_Index_Date) & (pl.col("Country") == country)).select(pl.col("Count")).to_numpy()[0][0]
@@ -331,10 +363,14 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
     # Case Analysis #
     #################
 
-    # Best case where we land inside the box # 
+    # Best case where we land inside Upper and Lower GMSR # 
     if (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Lower_GMSR) & (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] <= Upper_GMSR):
         
-        # Check that the Curve is in the desired target coverage
+        ############
+        #Ideal Case#
+        ############
+
+        # Check that the Curve is in the desired target coverage TODO Done!
         if Left_Limit <= TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] <= Right_Limit:
 
             TopPercentage = TopPercentage.with_columns(
@@ -348,17 +384,167 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
             # Check for Country_Cutoff
             TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
 
-        # If we are inside the Upper and Lower GMSR but below the target coverage
-        elif Left_Limit > TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0]:
+        ############
+        # Addition #
+        ############
 
-            TopPercentage
+        # If we are inside the Upper and Lower GMSR but below the target coverage [add the first one that crosses Left_Limit and is between Left_Limit and Right_Limit and then stop]
+        elif Left_Limit > TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0]:  #TODO To be Reviewed
 
-        # If we are inside the Upper and Lower GMSR but above the target coverage
-        elif Right_Limit < TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0]:
+            # Check if there are Companies in between the Upper and Lower GMSR
+            if len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff_Company") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR))) > 0:
 
-            TopPercentage
+                TopPercentage_Extension = (
+                    temp_Country
+                    .filter(pl.col("Full_MCAP_USD_Cutoff_Company") < Upper_GMSR)
+                    .sort("Full_MCAP_USD_Cutoff_Company", descending=True)
+                    .filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number"))))
+                    .select([
+                        "Date", 
+                        "Internal_Number", 
+                        "Instrument_Name", 
+                        "ENTITY_QID", 
+                        "Country", 
+                        "Free_Float_MCAP_USD_Cutoff_Company", 
+                        "Full_MCAP_USD_Cutoff_Company", 
+                        "Weight_Cutoff", 
+                        "CumWeight_Cutoff"
+                    ])
+                    .head(1)
+                )
+
+                TopPercentage = TopPercentage.with_columns(
+                                    pl.lit("Standard").alias("Size")
+                            )
+            
+                TopPercentage_Extension = TopPercentage_Extension.with_columns(
+                                        pl.lit("Standard").alias("Size")
+                            )
+                
+                # Merge the initial Frame with the additions
+                TopPercentage = TopPercentage.vstack(TopPercentage_Extension)
+
+                TopPercentage = TopPercentage.with_columns(
+                                        pl.lit("Above - Companies in between Upper and Lower GMSR").alias("Case")
+                            )
+                
+                # Check for Country_Cutoff
+                TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
+
+            # Check if there are no Companies in between the Upper and Lower GMSR 
+            elif len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff_Company") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR))) == 0:
+
+                # Add as many Companies as possible to get closer to Left_Limit
+                TopPercentage_Extension = (
+                    temp_Country
+                    .filter((pl.col("Full_MCAP_USD_Cutoff_Company") >= Upper_GMSR) & (pl.col("CumWeight_Cutoff") <= Left_Limit))
+                    .sort("Full_MCAP_USD_Cutoff_Company", descending=True)
+                    .filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number"))))
+                    .select([
+                        "Date", 
+                        "Internal_Number", 
+                        "Instrument_Name", 
+                        "ENTITY_QID", 
+                        "Country", 
+                        "Free_Float_MCAP_USD_Cutoff_Company", 
+                        "Full_MCAP_USD_Cutoff_Company", 
+                        "Weight_Cutoff", 
+                        "CumWeight_Cutoff"
+                    ])
+                )
+
+                TopPercentage = TopPercentage.with_columns(
+                            pl.lit("Standard").alias("Size")
+                    )
+                
+                TopPercentage_Extension = TopPercentage_Extension.with_columns(
+                        pl.lit("Standard").alias("Size")
+                    )
+                
+                # Merge the initial Frame with the additions
+                TopPercentage = TopPercentage.vstack(TopPercentage_Extension)
+            
+                TopPercentage = TopPercentage.with_columns(
+                                            pl.lit("Inside").alias("Case")
+                )
+
+                # Check for Country_Cutoff
+                TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
+                
+        ############
+        # Deletion #
+        ############
         
-        return TopPercentage
+        # If we are inside the Upper and Lower GMSR but above the target coverage [delete until we get inside the box, between 80% and 90%]
+        elif Right_Limit < TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0]: # TODO To be Reviewed
+
+            # Apply the Deletion Rule according to the Case if there Companies in between the Boundaries (GMSR & Coverage)
+            TopPercentage = Deletion_Rule_Inside_Bounds(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Limit, Upper_Limit)
+
+    # Case where we land above the box #
+    elif TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Upper_GMSR:
+
+        # Check if there are Companies in between the Upper and Lower GMSR
+        if len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff_Company") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR))) > 0:
+
+            TopPercentage_Extension = (
+                temp_Country
+                .filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= Upper_GMSR)
+                .sort("Full_MCAP_USD_Cutoff_Company", descending=True)
+                .filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number"))))
+                .select([
+                    "Date", 
+                    "Internal_Number", 
+                    "Instrument_Name", 
+                    "ENTITY_QID", 
+                    "Country", 
+                    "Free_Float_MCAP_USD_Cutoff_Company", 
+                    "Full_MCAP_USD_Cutoff_Company", 
+                    "Weight_Cutoff", 
+                    "CumWeight_Cutoff"
+                ])
+                .vstack(
+                    temp_Country
+                    .filter(pl.col("Full_MCAP_USD_Cutoff_Company") < Upper_GMSR)
+                    .sort("Full_MCAP_USD_Cutoff_Company", descending=True)
+                    .filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number"))))
+                    .select([
+                        "Date", 
+                        "Internal_Number", 
+                        "Instrument_Name", 
+                        "ENTITY_QID", 
+                        "Country", 
+                        "Free_Float_MCAP_USD_Cutoff_Company", 
+                        "Full_MCAP_USD_Cutoff_Company", 
+                        "Weight_Cutoff", 
+                        "CumWeight_Cutoff"
+                    ])
+                    .head(1)
+                )
+            )
+
+            TopPercentage = TopPercentage.with_columns(
+                                    pl.lit("Standard").alias("Size")
+                            )
+            
+            TopPercentage_Extension = TopPercentage_Extension.with_columns(
+                                    pl.lit("Standard").alias("Size")
+                            )
+            
+            # Merge the initial Frame with the additions
+            TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))
+
+            TopPercentage = TopPercentage.with_columns(
+                                    pl.lit("Above - Companies in between Upper and Lower GMSR").alias("Case")
+                    )
+            
+            # Check for Country_Cutoff
+            TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
+
+            # Save DataFrame to Excel
+            TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+        
+    return TopPercentage
 
 ##################################
 #Read Developed/Emerging Universe#
