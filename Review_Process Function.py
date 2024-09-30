@@ -518,7 +518,6 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
                         "Weight_Cutoff", 
                         "CumWeight_Cutoff"
                     ])
-                    .head(1)
                 )
 
                 TopPercentage = TopPercentage.with_columns(
@@ -530,7 +529,8 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
                             )
                 
                 # Merge the initial Frame with the additions
-                TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))
+                if len(TopPercentage_Extension) > 0:
+                    TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage))
 
                 TopPercentage = TopPercentage.with_columns(
                                         pl.lit("Above - Companies in between Upper and Lower GMSR").alias("Case")
@@ -564,9 +564,10 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
                 TopPercentage_Extension = TopPercentage_Extension.with_columns(
                         pl.lit("Addition").alias("Size")
                     )
-                
+                                    
                 # Merge the initial Frame with the additions
-                TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage))
+                if len(TopPercentage_Extension) > 0:
+                    TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage))
             
                 TopPercentage = TopPercentage.with_columns(
                                             pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case")
@@ -637,7 +638,8 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
                             )
             
             # Merge the initial Frame with the additions
-            TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))
+            if len(TopPercentage_Extension) > 0:
+                    TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage))
 
             TopPercentage = TopPercentage.with_columns(
                                     pl.lit("Above - Companies in between Upper and Lower GMSR").alias("Case")
@@ -670,7 +672,8 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
                             )
             
             # Merge the initial Frame with the additions
-            TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))
+            if len(TopPercentage_Extension) > 0:
+                TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage))
 
             TopPercentage = TopPercentage.with_columns(
                                     pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case")
