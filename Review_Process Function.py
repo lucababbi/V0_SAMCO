@@ -16,12 +16,51 @@ Left_Limit = 0.80
 Right_Limit = 0.90
 Threshold_NEW = 0.15
 Threshold_OLD = 0.10
+FOR_FF_Screen = 0.15
 
 Screen_TOR = False
 
-Excel_Recap = False
-Excel_Recap_Rebalancing = True
+Excel_Recap = True
+Excel_Recap_Rebalancing = False
 Output_File = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\TopPercentage_Report_Rebalancing.xlsx"
+
+##################################
+#######China A Securities#########
+##################################
+def China_A_Securities(Frame: pl.DataFrame) -> pl.DataFrame:
+
+    Results = pl.DataFrame({"Date": pl.Series(dtype=pl.Date),
+                            "Internal_Number": pl.Series(dtype=pl.Utf8),
+                            "Capfactor": pl.Series(dtype=pl.Float64),
+                            "Capfactor_CN": pl.Series(dtype=pl.Float64)
+                            })
+
+    for Date in Frame.select(["Date"]).unique().sort("Date").to_series():
+        # Filter for the given date
+        temp_Frame = Frame.filter(pl.col("Date") == Date)
+
+        if Date <= datetime.date(2022,3,21):
+            Chinese_Securities = temp_Frame.filter(
+                                (
+                                    (pl.col("Country") == "CN") &
+                                    (
+                                        pl.col("Instrument_Name").str.contains("'A'") |
+                                        pl.col("Instrument_Name").str.contains("(CCS)")
+                                    ))
+                            ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).with_columns(
+                                        (pl.col("Capfactor") / 2).alias("Capfactor_CN")
+                                    )
+        else:
+            Chinese_Securities = temp_Frame.filter(
+                                        (pl.col("Exchange") != 'Stock Exchange of Hong Kong - SSE Securities') &
+                                        (pl.col("Exchange") != 'Stock Exchange of Hong Kong - SZSE Securities')
+                                    ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).with_columns(
+                                        (pl.col("Capfactor") / 2).alias("Capfactor_CN")
+                                    )
+        
+        Results = Results.vstack(Chinese_Securities)
+            
+    return pl.DataFrame(Results)
 
 ##################################
 #######Quarterly Turnover#########
@@ -842,8 +881,35 @@ if Screen_TOR == True:
     Developed_Screened = Turnover_Check(Developed, Pivot_TOR, Threshold_NEW, Threshold_OLD)
     Emerging_Screened = Turnover_Check(Emerging, Pivot_TOR, Threshold_NEW, Threshold_OLD)
 else:
-    Developed_Screened = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Turnover\Developed_Screened.parquet")
-    Emerging_Screened = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Turnover\Emerging_Screened.parquet")
+    Developed_Screened = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Turnover\Developed_Screened.parquet").with_columns(
+        pl.col("Date").cast(pl.Date)
+    )
+    Emerging_Screened = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Turnover\Emerging_Screened.parquet").with_columns(
+        pl.col("Date").cast(pl.Date)
+    )
+
+# Remove Securities not passing the screen
+Developed = Developed.join(Developed_Screened, on=["Date", "Internal_Number"], how="left").filter(pl.col("Status") == "Pass")
+Emerging = Emerging.join(Emerging_Screened, on=["Date", "Internal_Number"], how="left").filter(pl.col("Status") == "Pass")
+
+###################################
+#########FOR FF Screening##########
+###################################
+
+# Mask CN Securities
+Chinese_CapFactor = China_A_Securities(Emerging)
+
+# Add the information to Emerging Universe
+Emerging = Emerging.join(Chinese_CapFactor.select(pl.col(["Date", "Internal_Number", "Capfactor_CN"])), on=["Date", "Internal_Number"], how="left").with_columns(
+                        pl.col("Capfactor_CN").fill_null(pl.col("Capfactor"))).drop("Capfactor").rename({"Capfactor_CN": "Capfactor"})
+
+# Filter for FOR_FF >= FOR_FF
+Developed = Developed.with_columns(
+                    (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
+).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
+Emerging = Emerging.with_columns(
+                    (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
+).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
 
 # Add ENTITY_QID to main Frames
 Developed = Developed.join(
@@ -1073,41 +1139,41 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                     pl.col("Date").first().alias("Date")
                 ).sort("Count", descending=True))
 
-            # Following Reviews where Index is rebalanced
-            else:
+            # # Following Reviews where Index is rebalanced
+            # else:
 
-                Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
-                Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+            #     Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+            #     Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
 
-                # Check if there is already a previous Index creation for the current country
-                if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") < date))) > 0:
+            #     # Check if there is already a previous Index creation for the current country
+            #     if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") < date))) > 0:
 
-                    TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+            #         TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
 
-                    # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
+            #         # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
+            #         TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
 
-                    if Excel_Recap_Rebalancing == True:
+            #         if Excel_Recap_Rebalancing == True:
 
-                        # Save DataFrame to Excel
-                        TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-                        # Create and save the chart
-                        chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
+            #             # Save DataFrame to Excel
+            #             TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+            #             # Create and save the chart
+            #             chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
 
-                        # Insert the chart into the Excel file
-                        workbook = writer.book
-                        worksheet = writer.sheets[f'{date}_{country}']
-                        worksheet.insert_image('H2', chart_file)
+            #             # Insert the chart into the Excel file
+            #             workbook = writer.book
+            #             worksheet = writer.sheets[f'{date}_{country}']
+            #             worksheet.insert_image('H2', chart_file)
 
-                    # Stack to Output_Standard_Index
-                    Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
+            #         # Stack to Output_Standard_Index
+            #         Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
                     
-                    # Create the Output_Count_Standard_Index for future rebalacing
-                    Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
-                        pl.len().alias("Count"),
-                        pl.col("Date").first().alias("Date")
-                    ).sort("Count", descending=True))
+            #         # Create the Output_Count_Standard_Index for future rebalacing
+            #         Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
+            #             pl.len().alias("Count"),
+            #             pl.col("Date").first().alias("Date")
+            #         ).sort("Count", descending=True))
                 
-                # If there is no composition, a new Index will be created
-                else:
-                    TopPercentage = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+            #     # If there is no composition, a new Index will be created
+            #     else:
+            #         TopPercentage = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
