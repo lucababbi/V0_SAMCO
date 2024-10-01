@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import date
 import matplotlib.pyplot as plt
 from pandasql import sqldf
+import datetime
 
 ##################################
 ###########Parameters#############
@@ -13,9 +14,62 @@ Lower_Limit = 0.50
 Percentage = 0.85
 Left_Limit = 0.80
 Right_Limit = 0.90
+Threshold_NEW = 0.15
+Threshold_OLD = 0.10
+
+Screen_TOR = False
 
 Excel_Recap = False
+Excel_Recap_Rebalancing = True
 Output_File = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\TopPercentage_Report_Rebalancing.xlsx"
+
+##################################
+#######Quarterly Turnover#########
+##################################
+
+def Turnover_Check(Frame: pl.DataFrame, Pivot_TOR: pl.DataFrame, Threshold_NEW, Threshold_OLD) -> pl.DataFrame:
+
+    # List of Unique Dates
+    Dates_List = Pivot_TOR.index.to_list()
+
+    # Output
+    Results = []
+    Status = {}
+
+    for Row in Frame.iter_rows(named=True):
+        Date = Row["Date"].strftime("%Y-%m-%d")
+        Internal_Number = Row["Internal_Number"]
+
+        # Ensure the Internal_Number exists in Pivot_TOR's columns
+        if Internal_Number not in Pivot_TOR.columns:
+            continue
+
+        # Find the index of Date in Pivot_TOR
+        try:
+            IDX_Current = Dates_List.index(Date)
+        except ValueError:
+            # If the date is not found, skip this row
+            continue
+
+        # Get the previous three Dates and Current Date
+        Relevant_Dates = pl.Series(Dates_List[max(0, IDX_Current - 3): IDX_Current + 1])
+
+        # Extract the Turnover_Ratio values for the relevant dates and Internal_Number
+        TOR_Values = Pivot_TOR.loc[Relevant_Dates, Internal_Number].to_list()
+
+        # Determine the Threshold
+        Threshold = Threshold_OLD if Status.get(Internal_Number, False) else Threshold_NEW
+
+        # Check if all values are above the threshold
+        if min(TOR_Values) >= Threshold:
+            Results.append({"Date": Date, "Internal_Number": Internal_Number, "Status": "Pass"})
+            Status[Internal_Number] = True  # Mark as passed
+        else:
+            Results.append({"Date": Date, "Internal_Number": Internal_Number, "Status": "Fail"})
+            Status[Internal_Number] = False  # Mark as failed
+
+    # Return results as Polars
+    return pl.DataFrame(Results)
 
 ##################################
 #######Equity Minimum Size########
@@ -45,40 +99,52 @@ def Equity_Minimum_Size(df: pl.DataFrame) -> pl.DataFrame:
             # Initial calculation
             min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff_Company").head(1)
             equity_universe_min_size = min_size_company[0, 0]
-            previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") == equity_universe_min_size).height
+            previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
 
             df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
                 pl.lit(equity_universe_min_size).alias("EUMSR"),
                 pl.lit(previous_rank).alias("EUMSR_Rank")
             ])
         else:
-            previous_coverage = df_date[previous_rank - 1, "Cumulative_Free_Float_MCAP_USD_Cutoff_Company"] / total_market_cap
-            
-            if 0.99 <= previous_coverage <= 0.9925:
-                equity_universe_min_size = df_date[previous_rank - 1, "Full_MCAP_USD_Cutoff_Company"]
-                df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
-                    pl.lit(equity_universe_min_size).alias("EUMSR"),
-                    pl.lit(previous_rank).alias("EUMSR_Rank")
-                ])
-            elif previous_coverage < 0.99:
+            # Ensure previous_rank - 1 is within the bounds
+            if previous_rank - 1 < len(df_date):
+                previous_coverage = df_date[previous_rank - 1, "Cumulative_Free_Float_MCAP_USD_Cutoff_Company"] / total_market_cap
+                
+                if 0.99 <= previous_coverage <= 0.9925:
+                    equity_universe_min_size = df_date[previous_rank - 1, "Full_MCAP_USD_Cutoff_Company"]
+                    df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
+                        pl.lit(equity_universe_min_size).alias("EUMSR"),
+                        pl.lit(previous_rank).alias("EUMSR_Rank")
+                    ])
+                elif previous_coverage < 0.99:
+                    min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff_Company").head(1)
+                    equity_universe_min_size = min_size_company[0, 0]
+                    previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
+
+                    df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
+                        pl.lit(equity_universe_min_size).alias("EUMSR"),
+                        pl.lit(previous_rank).alias("EUMSR_Rank")
+                    ])
+                else:
+                    min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.9925).select("Full_MCAP_USD_Cutoff_Company").head(1)
+                    equity_universe_min_size = min_size_company[0, 0]
+                    previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
+
+                    df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
+                        pl.lit(equity_universe_min_size).alias("EUMSR"),
+                        pl.lit(previous_rank).alias("EUMSR_Rank")
+                    ])
+
+            else:
                 min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff_Company").head(1)
                 equity_universe_min_size = min_size_company[0, 0]
-                previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") == equity_universe_min_size).height
+                previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
 
                 df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
-                    pl.lit(equity_universe_min_size).alias("EUMSR"),
-                    pl.lit(previous_rank).alias("EUMSR_Rank")
-                ])
-            else:
-                min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.9925).select("Full_MCAP_USD_Cutoff_Company").head(1)
-                equity_universe_min_size = min_size_company[0, 0]
-                previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") == equity_universe_min_size).height
+                        pl.lit(equity_universe_min_size).alias("EUMSR"),
+                        pl.lit(previous_rank).alias("EUMSR_Rank")
+                    ])
 
-                df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
-                    pl.lit(equity_universe_min_size).alias("EUMSR"),
-                    pl.lit(previous_rank).alias("EUMSR_Rank")
-                ])
-        
         results.append((date, equity_universe_min_size, previous_rank))
         final_df = pl.concat([final_df, df_date1])
     
@@ -165,10 +231,12 @@ def Deletion_Rule(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Li
            
         # Iterate and check the condition, allowing for a minimum of 1 if the condition is met
         while Companies_To_Delete <= Maximum_Deletion:
+
+            # If removing Companies lands us inside the CumWeight Right_Limit, we allow Companies_To_Delete to be 1
+            TopPercentage_Trimmed = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
+
             if Left_Limit <= TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] <= Right_Limit:
 
-                # If removing Companies lands us inside the CumWeight Right_Limit, we allow Companies_To_Delete to be 1
-                TopPercentage_Trimmed = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
                 break  # Break the loop once the condition is met
 
             else: 
@@ -476,7 +544,7 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
     if (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Lower_GMSR) & (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] <= Upper_GMSR):
         
         ############
-        #Ideal Case#
+        #Ideal Case#    
         ############
 
         # Check that the Curve is in the desired target coverage TODO Done!
@@ -504,9 +572,17 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
 
                 TopPercentage_Extension = (
                     temp_Country
-                    .filter(pl.col("Full_MCAP_USD_Cutoff_Company") < Upper_GMSR)
+                    .filter((pl.col("Full_MCAP_USD_Cutoff_Company") < Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") > Lower_GMSR) & (pl.col("CumWeight_Cutoff") < Left_Limit))
                     .sort("Full_MCAP_USD_Cutoff_Company", descending=True)
                     .filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number"))))
+                    .vstack(
+                        temp_Country
+                        .filter((pl.col("Full_MCAP_USD_Cutoff_Company") < Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") > Lower_GMSR) & (pl.col("CumWeight_Cutoff") >= Left_Limit) & 
+                                (~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number"))))
+                        )
+                        .sort("Full_MCAP_USD_Cutoff_Company", descending=True)
+                        .head(1)  # Select the first row crossing the Left_Limit
+                    )
                     .select([
                         "Date", 
                         "Internal_Number", 
@@ -530,7 +606,7 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
                 
                 # Merge the initial Frame with the additions
                 if len(TopPercentage_Extension) > 0:
-                    TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage))
+                    TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))
 
                 TopPercentage = TopPercentage.with_columns(
                                         pl.lit("Above - Companies in between Upper and Lower GMSR").alias("Case")
@@ -567,8 +643,8 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
                                     
                 # Merge the initial Frame with the additions
                 if len(TopPercentage_Extension) > 0:
-                    TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage))
-            
+                    TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))      
+
                 TopPercentage = TopPercentage.with_columns(
                                             pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case")
                 )
@@ -639,7 +715,7 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
             
             # Merge the initial Frame with the additions
             if len(TopPercentage_Extension) > 0:
-                    TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage))
+                TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))
 
             TopPercentage = TopPercentage.with_columns(
                                     pl.lit("Above - Companies in between Upper and Lower GMSR").alias("Case")
@@ -673,7 +749,7 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
             
             # Merge the initial Frame with the additions
             if len(TopPercentage_Extension) > 0:
-                TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage))
+                TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))
 
             TopPercentage = TopPercentage.with_columns(
                                     pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case")
@@ -732,6 +808,42 @@ SW_ACALLCAP = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\
                         pl.col("Review").cast(pl.Utf8).str.strptime(pl.Date, "%m/%d/%Y"),
                         pl.col("Cutoff").cast(pl.Utf8).str.strptime(pl.Date, "%m/%d/%Y")
                       ), left_on="Date", right_on="Cutoff", how="left")
+
+###################################
+#####Filtering from StartDate######
+###################################
+Emerging = Emerging.filter(pl.col("Date") >= Starting_Date)
+Developed = Developed.filter(pl.col("Date") >= Starting_Date)
+
+###################################
+######TurnoverRatio Screening######
+###################################
+
+if Screen_TOR == True:
+    # TurnOverRatio
+    Turnover = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Turnover\Turnover_Cutoff_SWALL.parquet")
+    # Drop unuseful columns
+    Turnover = Turnover.drop(["vd", "calcType", "token"])
+    # Keep only relevant fields
+    Turnover = Turnover.filter(pl.col("field").is_in(["TurnoverRatioFO", "TurnoverRatioFO_India1"]))
+    # Transform the table
+    Turnover = Turnover.pivot(
+                    values="Turnover_Ratio",
+                    index=["Date", "Internal_Number"],
+                    on="field"
+                    ).rename({"TurnoverRatioFO": "Turnover_Ratio"})
+    # Fill NA in TurnoverRatioFO_India1
+    Turnover = Turnover.with_columns(
+                                    pl.col("TurnoverRatioFO_India1").fill_null(pl.col("Turnover_Ratio"))
+                                    ).drop("Turnover_Ratio").rename({"TurnoverRatioFO_India1": "Turnover_Ratio"}).to_pandas()
+    # Add Turnover Information
+    Pivot_TOR = Turnover.pivot(values="Turnover_Ratio", index="Date", columns="Internal_Number")
+    # Apply the Check on Turnover for all Components
+    Developed_Screened = Turnover_Check(Developed, Pivot_TOR, Threshold_NEW, Threshold_OLD)
+    Emerging_Screened = Turnover_Check(Emerging, Pivot_TOR, Threshold_NEW, Threshold_OLD)
+else:
+    Developed_Screened = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Turnover\Developed_Screened.parquet")
+    Emerging_Screened = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Turnover\Emerging_Screened.parquet")
 
 # Add ENTITY_QID to main Frames
 Developed = Developed.join(
@@ -908,11 +1020,6 @@ for date in Developed["Date"].unique():
 
     GMSR_Frame = GMSR_Frame.vstack(New_Data)
 
-###################################
-#####Filtering from StartDate######
-###################################
-Emerging_Aggregate = Emerging_Aggregate.filter(pl.col("Date") >= Starting_Date)
-
 #################################
 ##Start the Size Classification##
 #################################
@@ -980,7 +1087,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
                     TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
 
-                    if Excel_Recap == True:
+                    if Excel_Recap_Rebalancing == True:
 
                         # Save DataFrame to Excel
                         TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
