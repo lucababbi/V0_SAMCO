@@ -1090,7 +1090,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             ##################################
 
             Screened_Securities = Screened_Securities.vstack(temp_Developed.with_columns(pl.lit("Developed").alias("Segment")).select(Screened_Securities.columns))
-            Screened_Securities = Screened_Securities.vstack(temp_Emerging.with_columns(pl.lit("Developed").alias("Segment")).select(Screened_Securities.columns))
+            Screened_Securities = Screened_Securities.vstack(temp_Emerging.with_columns(pl.lit("Emerging").alias("Segment")).select(Screened_Securities.columns))
 
             ##################################
             #######Aggregate Companies########
@@ -1203,7 +1203,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             ##################################
 
             Screened_Securities = Screened_Securities.vstack(temp_Developed.with_columns(pl.lit("Developed").alias("Segment")).select(Screened_Securities.columns))
-            Screened_Securities = Screened_Securities.vstack(temp_Emerging.with_columns(pl.lit("Developed").alias("Segment")).select(Screened_Securities.columns))
+            Screened_Securities = Screened_Securities.vstack(temp_Emerging.with_columns(pl.lit("Emerging").alias("Segment")).select(Screened_Securities.columns))
 
             ##################################
             #######Aggregate Companies########
