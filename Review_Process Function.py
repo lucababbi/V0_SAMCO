@@ -20,7 +20,7 @@ FOR_FF_Screen = 0.15
 
 Screen_TOR = True
 
-Excel_Recap = True
+Excel_Recap = False
 Excel_Recap_Rebalancing = False
 Output_File = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\TopPercentage_Report_Rebalancing.xlsx"
 
@@ -1036,7 +1036,8 @@ Output_Count_Standard_Index = pl.DataFrame({
 
 Screened_Securities = pl.DataFrame({
                                     "Date": pl.Series([], dtype=pl.Date),
-                                    "Internal_Number": pl.Series([], dtype=pl.Utf8)
+                                    "Internal_Number": pl.Series([], dtype=pl.Utf8),
+                                    "Segment": pl.Series([], dtype=pl.Utf8)
 })
 
 with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
@@ -1088,8 +1089,8 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             #Store Securities Passing Screens#
             ##################################
 
-            Screened_Securities = Screened_Securities.vstack(temp_Developed.select(Screened_Securities.columns))
-            Screened_Securities = Screened_Securities.vstack(temp_Emerging.select(Screened_Securities.columns))
+            Screened_Securities = Screened_Securities.vstack(temp_Developed.with_columns(pl.lit("Developed").alias("Segment")).select(Screened_Securities.columns))
+            Screened_Securities = Screened_Securities.vstack(temp_Emerging.with_columns(pl.lit("Developed").alias("Segment")).select(Screened_Securities.columns))
 
             ##################################
             #######Aggregate Companies########
@@ -1159,157 +1160,160 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                         pl.col("Date").first().alias("Date")
                     ).sort("Count", descending=True))
 
-        # # Following Reviews where Index is rebalanced
-        # else:
+        # Following Reviews where Index is rebalanced
+        else:
 
-        #     ###################################
-        #     ######TurnoverRatio Screening######
-        #     ###################################
+            ###################################
+            ######TurnoverRatio Screening######
+            ###################################
 
-        #     # Apply the Check on Turnover for all Components
-        #     Developed_Screened = Turnover_Check(temp_Developed, Pivot_TOR, Threshold_NEW, Threshold_OLD, date, Starting_Date, Screened_Securities).with_columns(
-        #         pl.col("Date").cast(pl.Date))
-        #     Emerging_Screened = Turnover_Check(temp_Emerging, Pivot_TOR, Threshold_NEW, Threshold_OLD, date, Starting_Date, Screened_Securities).with_columns(
-        #         pl.col("Date").cast(pl.Date))
+            # Apply the Check on Turnover for all Components
+            Developed_Screened = Turnover_Check(temp_Developed, Pivot_TOR, Threshold_NEW, Threshold_OLD, date, Starting_Date, Screened_Securities).with_columns(
+                pl.col("Date").cast(pl.Date))
+            Emerging_Screened = Turnover_Check(temp_Emerging, Pivot_TOR, Threshold_NEW, Threshold_OLD, date, Starting_Date, Screened_Securities).with_columns(
+                pl.col("Date").cast(pl.Date))
 
-        #     # Remove Securities not passing the screen
-        #     temp_Developed = temp_Developed.join(Developed_Screened, on=["Date", "Internal_Number"], how="left").filter(pl.col("Status") == "Pass")
-        #     temp_Emerging = temp_Emerging.join(Emerging_Screened, on=["Date", "Internal_Number"], how="left").filter(pl.col("Status") == "Pass")
+            # Remove Securities not passing the screen
+            temp_Developed = temp_Developed.join(Developed_Screened, on=["Date", "Internal_Number"], how="left").filter(pl.col("Status") == "Pass")
+            temp_Emerging = temp_Emerging.join(Emerging_Screened, on=["Date", "Internal_Number"], how="left").filter(pl.col("Status") == "Pass")
 
-        #     ###################################
-        #     #########FOR FF Screening##########
-        #     ###################################
+            ###################################
+            #########FOR FF Screening##########
+            ###################################
 
-        #     # Filter for FOR_FF >= FOR_FF
-        #     temp_Developed = temp_Developed.with_columns(
-        #                         (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
-        #                         ).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
-        #     temp_Emerging = temp_Emerging.with_columns(
-        #                         (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
-        #                         ).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
+            # # Filter for FOR_FF >= FOR_FF
+            # temp_Developed = temp_Developed.with_columns(
+            #                     (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
+            #                     ).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
+            # temp_Emerging = temp_Emerging.with_columns(
+            #                     (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
+            #                     ).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
 
-        #     ###################################
-        #     ##########Apply EMS Screen#########
-        #     ###################################
+            ###################################
+            ##########Apply EMS Screen#########
+            ###################################
 
-        #     temp_Developed = Equity_Minimum_Size(temp_Developed).select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
-        #                                                                                 "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"]))
-        #     temp_Emerging = Equity_Minimum_Size(temp_Emerging).select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
-        #                                                                                 "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"]))
+            temp_Developed = Equity_Minimum_Size(temp_Developed).select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
+                                                                                        "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"]))
+            temp_Emerging = Equity_Minimum_Size(temp_Emerging).select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
+                                                                                        "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"]))
 
-        #     ##################################
-        #     #Store Securities Passing Screens#
-        #     ##################################
+            ##################################
+            #Store Securities Passing Screens#
+            ##################################
 
-        #     Screened_Securities = Screened_Securities.vstack(temp_Developed.select(Screened_Securities.columns))
-        #     Screened_Securities = Screened_Securities.vstack(temp_Emerging.select(Screened_Securities.columns))
+            Screened_Securities = Screened_Securities.vstack(temp_Developed.with_columns(pl.lit("Developed").alias("Segment")).select(Screened_Securities.columns))
+            Screened_Securities = Screened_Securities.vstack(temp_Emerging.with_columns(pl.lit("Developed").alias("Segment")).select(Screened_Securities.columns))
 
-        #     ##################################
-        #     #######Aggregate Companies########
-        #     ##################################
+            ##################################
+            #######Aggregate Companies########
+            ##################################
 
-        #     temp_Developed_Aggregate = temp_Developed.select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"])).group_by(
-        #                                             ["Date", "ENTITY_QID"]).agg([
-        #                                                 pl.col("Country").first().alias("Country"),
-        #                                                 pl.col("Internal_Number").first().alias("Internal_Number"),
-        #                                                 pl.col("Instrument_Name").first().alias("Instrument_Name"),
-        #                                                 pl.col("Free_Float_MCAP_USD_Cutoff").sum().alias("Free_Float_MCAP_USD_Cutoff_Company"),
-        #                                                 pl.col("Full_MCAP_USD_Cutoff").sum().alias("Full_MCAP_USD_Cutoff_Company")
-        #                                             ]).sort(["Date", "ENTITY_QID"])
+            temp_Developed_Aggregate = temp_Developed.select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"])).group_by(
+                                                    ["Date", "ENTITY_QID"]).agg([
+                                                        pl.col("Country").first().alias("Country"),
+                                                        pl.col("Internal_Number").first().alias("Internal_Number"),
+                                                        pl.col("Instrument_Name").first().alias("Instrument_Name"),
+                                                        pl.col("Free_Float_MCAP_USD_Cutoff").sum().alias("Free_Float_MCAP_USD_Cutoff_Company"),
+                                                        pl.col("Full_MCAP_USD_Cutoff").sum().alias("Full_MCAP_USD_Cutoff_Company")
+                                                    ]).sort(["Date", "ENTITY_QID"])
 
-        #     temp_Emerging_Aggregate = temp_Emerging.select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"])).group_by(
-        #                                             ["Date", "ENTITY_QID"]).agg([
-        #                                                 pl.col("Country").first().alias("Country"),
-        #                                                 pl.col("Internal_Number").first().alias("Internal_Number"),
-        #                                                 pl.col("Instrument_Name").first().alias("Instrument_Name"),
-        #                                                 pl.col("Free_Float_MCAP_USD_Cutoff").sum().alias("Free_Float_MCAP_USD_Cutoff_Company"),
-        #                                                 pl.col("Full_MCAP_USD_Cutoff").sum().alias("Full_MCAP_USD_Cutoff_Company")
-        #                                             ]).sort(["Date", "ENTITY_QID"])
+            temp_Emerging_Aggregate = temp_Emerging.select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"])).group_by(
+                                                    ["Date", "ENTITY_QID"]).agg([
+                                                        pl.col("Country").first().alias("Country"),
+                                                        pl.col("Internal_Number").first().alias("Internal_Number"),
+                                                        pl.col("Instrument_Name").first().alias("Instrument_Name"),
+                                                        pl.col("Free_Float_MCAP_USD_Cutoff").sum().alias("Free_Float_MCAP_USD_Cutoff_Company"),
+                                                        pl.col("Full_MCAP_USD_Cutoff").sum().alias("Full_MCAP_USD_Cutoff_Company")
+                                                    ]).sort(["Date", "ENTITY_QID"])
 
-        #     #################################
-        #     #########GMSR Calculation########
-        #     #################################
+            #################################
+            #########GMSR Calculation########
+            #################################
 
-        #     temp_Developed_Aggregate = temp_Developed_Aggregate.sort(["Full_MCAP_USD_Cutoff_Company"], descending=True)
-        #     temp_Developed_Aggregate = temp_Developed_Aggregate.with_columns(
-        #                                                     (pl.col("Free_Float_MCAP_USD_Cutoff_Company") / pl.col("Free_Float_MCAP_USD_Cutoff_Company").sum()).alias("Weight_Cutoff")
-        #     )
+            temp_Developed_Aggregate = temp_Developed_Aggregate.sort(["Full_MCAP_USD_Cutoff_Company"], descending=True)
+            temp_Developed_Aggregate = temp_Developed_Aggregate.with_columns(
+                                                            (pl.col("Free_Float_MCAP_USD_Cutoff_Company") / pl.col("Free_Float_MCAP_USD_Cutoff_Company").sum()).alias("Weight_Cutoff")
+            )
 
-        #     temp_Developed_Aggregate = temp_Developed_Aggregate.with_columns(
-        #                                                     (pl.col("Weight_Cutoff").cum_sum()).alias("CumWeight_Cutoff")
-        #     )
+            temp_Developed_Aggregate = temp_Developed_Aggregate.with_columns(
+                                                            (pl.col("Weight_Cutoff").cum_sum()).alias("CumWeight_Cutoff")
+            )
 
-        #     New_Data = pl.DataFrame({
-        #                                 "Date": [date],
-        #                                 "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
-        #                                 "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
-        #                                 "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
-        #                                 "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
-        #     })
+            New_Data = pl.DataFrame({
+                                        "Date": [date],
+                                        "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
+                                        "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
+                                        "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
+                                        "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
+            })
 
-        #     GMSR_Frame = GMSR_Frame.vstack(New_Data)
+            GMSR_Frame = GMSR_Frame.vstack(New_Data)
 
-        #     #################################
-        #     ##Start the Size Classification##
-        #     #################################
+            #################################
+            ##Start the Size Classification##
+            #################################
 
-        #     Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
-        #     Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+            Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+            Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
 
-        #     # Check if there is already a previous Index creation for the current country
-        #     if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") < date))) > 0:
+            # Check if there is already a previous Index creation for the current country
+            if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") < date))) > 0:
 
-        #         TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+                TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
 
-        #         # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-        #         TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
+                # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
+                TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
 
-        #         if Excel_Recap_Rebalancing == True:
+                if Excel_Recap_Rebalancing == True:
 
-        #             # Save DataFrame to Excel
-        #             TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-        #             # Create and save the chart
-        #             chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
+                    # Save DataFrame to Excel
+                    TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+                    # Create and save the chart
+                    chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
 
-        #             # Insert the chart into the Excel file
-        #             workbook = writer.book
-        #             worksheet = writer.sheets[f'{date}_{country}']
-        #             worksheet.insert_image('M2', chart_file)
+                    # Insert the chart into the Excel file
+                    workbook = writer.book
+                    worksheet = writer.sheets[f'{date}_{country}']
+                    worksheet.insert_image('M2', chart_file)
 
-        #         # Stack to Output_Standard_Index
-        #         Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
+                # Stack to Output_Standard_Index
+                Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
                 
-        #         # Create the Output_Count_Standard_Index for future rebalacing
-        #         Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
-        #             pl.len().alias("Count"),
-        #             pl.col("Date").first().alias("Date")
-        #         ).sort("Count", descending=True))
+                # Create the Output_Count_Standard_Index for future rebalacing
+                Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
+                    pl.len().alias("Count"),
+                    pl.col("Date").first().alias("Date")
+                ).sort("Count", descending=True))
             
-        #     # If there is no composition, a new Index will be created
-        #     else:
-        #         TopPercentage = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+            # If there is no composition, a new Index will be created
+            else:
+                TopPercentage = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
                 
-        #         # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-        #         TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
+                # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
+                TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
 
-        #         if Excel_Recap_Rebalancing == True:
+                if Excel_Recap_Rebalancing == True:
 
-        #             # Save DataFrame to Excel
-        #             TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-        #             # Create and save the chart
-        #             chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
+                    # Save DataFrame to Excel
+                    TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+                    # Create and save the chart
+                    chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
 
-        #             # Insert the chart into the Excel file
-        #             workbook = writer.book
-        #             worksheet = writer.sheets[f'{date}_{country}']
-        #             worksheet.insert_image('M2', chart_file)
+                    # Insert the chart into the Excel file
+                    workbook = writer.book
+                    worksheet = writer.sheets[f'{date}_{country}']
+                    worksheet.insert_image('M2', chart_file)
 
-        #         # Stack to Output_Standard_Index
-        #         Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
+                # Stack to Output_Standard_Index
+                Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
                 
-        #         # Create the Output_Count_Standard_Index for future rebalacing
-        #         Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
-        #             pl.len().alias("Count"),
-        #             pl.col("Date").first().alias("Date")
-        #         ).sort("Count", descending=True))
+                # Create the Output_Count_Standard_Index for future rebalacing
+                Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
+                    pl.len().alias("Count"),
+                    pl.col("Date").first().alias("Date")
+                ).sort("Count", descending=True))
 
+# Store Investable Universe Emerging
+Screened_Securities.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Code_Output\Investable_Universe.csv")
+Output_Standard_Index.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Code_Output\Standard_Index.csv")
