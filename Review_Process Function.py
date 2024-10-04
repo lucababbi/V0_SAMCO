@@ -117,80 +117,104 @@ def Turnover_Check(Frame: pl.DataFrame, Pivot_TOR: pl.DataFrame, Threshold_NEW, 
 #######Equity Minimum Size########
 ##################################
 
-def Equity_Minimum_Size(df: pl.DataFrame) -> pl.DataFrame:
+def Equity_Minimum_Size(df: pl.DataFrame, EMS_Frame, date, Segment: pl.Utf8) -> pl.DataFrame:
     # List to hold results
     results = []
-    previous_rank = None
-    final_df = pl.DataFrame()   
+    try:
+        previous_rank = EMS_Frame.filter((pl.col("Date") == date) & (pl.col("Segment") == Segment)).select(pl.col("Rank")).to_numpy()[0][0]
+    except:
+        previous_rank = None
+    final_df = pl.DataFrame()
+
+    # Create a copy of DF at Security_Level
+    Security_Level_DF = df
+
+    # Aggregate Securities by ENTITY_QID
+    df = df.select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"])).group_by(
+                                                    ["Date", "ENTITY_QID"]).agg([
+                                                        pl.col("Country").first().alias("Country"),
+                                                        pl.col("Internal_Number").first().alias("Internal_Number"),
+                                                        pl.col("Instrument_Name").first().alias("Instrument_Name"),
+                                                        pl.col("Free_Float_MCAP_USD_Cutoff").sum().alias("Free_Float_MCAP_USD_Cutoff_Company"),
+                                                        pl.col("Full_MCAP_USD_Cutoff").sum().alias("Full_MCAP_USD_Cutoff_Company")
+                                                    ]).sort(["Date", "ENTITY_QID"])
     
     # Iterate over unique dates in the DataFrame
     for date in df.select(pl.col("Date").unique()).to_series():
         
         # Filter the DataFrame for the current date
-        df_date = df.filter(pl.col("Date") == date).sort("Full_MCAP_USD_Cutoff", descending=True)
+        df_date = df.filter(pl.col("Date") == date).sort("Full_MCAP_USD_Cutoff_Company", descending=True)
         
         # Calculate cumulative sums and coverage
         df_date = df_date.with_columns([
-            pl.col("Free_Float_MCAP_USD_Cutoff").cum_sum().alias("Cumulative_Free_Float_MCAP_USD_Cutoff"),
-            (pl.col("Free_Float_MCAP_USD_Cutoff").cum_sum() / pl.col("Free_Float_MCAP_USD_Cutoff").sum()).alias("Cumulative_Coverage_Cutoff")
+            pl.col("Free_Float_MCAP_USD_Cutoff_Company").cum_sum().alias("Cumulative_Free_Float_MCAP_USD_Cutoff_Company"),
+            (pl.col("Free_Float_MCAP_USD_Cutoff_Company").cum_sum() / pl.col("Free_Float_MCAP_USD_Cutoff_Company").sum()).alias("Cumulative_Coverage_Cutoff")
         ])
         
-        total_market_cap = df_date.select(pl.col("Free_Float_MCAP_USD_Cutoff").sum()).to_numpy()[0][0]
+        total_market_cap = df_date.select(pl.col("Free_Float_MCAP_USD_Cutoff_Company").sum()).to_numpy()[0][0]
         
         if previous_rank is None:
             # Initial calculation
-            min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff").head(1)
+            min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff_Company").head(1)
             equity_universe_min_size = min_size_company[0, 0]
-            previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff") >= equity_universe_min_size).height
+            previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
 
-            df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff") >= equity_universe_min_size).with_columns([
+            df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
                 pl.lit(equity_universe_min_size).alias("EUMSR"),
                 pl.lit(previous_rank).alias("EUMSR_Rank")
             ])
         else:
             # Ensure previous_rank - 1 is within the bounds
             if previous_rank - 1 < len(df_date):
-                previous_coverage = df_date[previous_rank - 1, "Cumulative_Free_Float_MCAP_USD_Cutoff"] / total_market_cap
+                previous_coverage = df_date[previous_rank - 1, "Cumulative_Free_Float_MCAP_USD_Cutoff_Company"] / total_market_cap
                 
                 if 0.99 <= previous_coverage <= 0.9925:
-                    equity_universe_min_size = df_date[previous_rank - 1, "Full_MCAP_USD_Cutoff"]
-                    df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff") >= equity_universe_min_size).with_columns([
+                    equity_universe_min_size = df_date[previous_rank - 1, "Full_MCAP_USD_Cutoff_Company"]
+                    df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
                         pl.lit(equity_universe_min_size).alias("EUMSR"),
                         pl.lit(previous_rank).alias("EUMSR_Rank")
                     ])
                 elif previous_coverage < 0.99:
-                    min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff").head(1)
+                    min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff_Company").head(1)
                     equity_universe_min_size = min_size_company[0, 0]
-                    previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff") >= equity_universe_min_size).height
+                    previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
 
-                    df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff") >= equity_universe_min_size).with_columns([
+                    df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
                         pl.lit(equity_universe_min_size).alias("EUMSR"),
                         pl.lit(previous_rank).alias("EUMSR_Rank")
                     ])
                 else:
-                    min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.9925).select("Full_MCAP_USD_Cutoff").head(1)
+                    min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.9925).select("Full_MCAP_USD_Cutoff_Company").head(1)
                     equity_universe_min_size = min_size_company[0, 0]
-                    previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff") >= equity_universe_min_size).height
+                    previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
 
-                    df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff") >= equity_universe_min_size).with_columns([
+                    df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
                         pl.lit(equity_universe_min_size).alias("EUMSR"),
                         pl.lit(previous_rank).alias("EUMSR_Rank")
                     ])
 
             else:
-                min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff").head(1)
+                min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff_Company").head(1)
                 equity_universe_min_size = min_size_company[0, 0]
-                previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff") >= equity_universe_min_size).height
+                previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
 
-                df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff") >= equity_universe_min_size).with_columns([
+                df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
                         pl.lit(equity_universe_min_size).alias("EUMSR"),
                         pl.lit(previous_rank).alias("EUMSR_Rank")
                     ])
 
-        results.append((date, equity_universe_min_size, previous_rank))
+        EMS_Frame = EMS_Frame.vstack(pl.DataFrame({
+                                    "Date": [date],
+                                    "Segment": [Segment],
+                                    "EMS": [equity_universe_min_size],
+                                    "Rank": [previous_rank],
+                                    "FreeFloatMCAP_Minimum_Size": [equity_universe_min_size / 2]
+        }))
         final_df = pl.concat([final_df, df_date1])
+
+
     
-    return final_df
+    return final_df, EMS_Frame
 
 ##################################
 ###########MatplotLib#############
@@ -1040,8 +1064,19 @@ Screened_Securities = pl.DataFrame({
                                     "Segment": pl.Series([], dtype=pl.Utf8)
 })
 
+EMS_Frame = pl.DataFrame({
+                        "Date": pl.Series([], dtype=pl.Date),
+                        "Segment": pl.Series([], dtype=pl.Utf8),
+                        "EMS": pl.Series([], dtype=pl.Float64),
+                        "Rank": pl.Series([], dtype=pl.Int64),
+                        "FreeFloatMCAP_Minimum_Size": pl.Series([], dtype=pl.Float64)
+})
+
 with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
     for date in Emerging.select(["Date"]).unique().sort("Date").to_series():
+
+        # Status
+        print(date)
 
         # Keep only a slice of Frame with the current Date
         temp_Emerging = Emerging.filter(pl.col("Date") == date)
@@ -1080,9 +1115,13 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             ##########Apply EMS Screen#########
             ###################################
 
-            temp_Developed = Equity_Minimum_Size(temp_Developed).select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
+            temp_Developed, EMS_Frame = Equity_Minimum_Size(temp_Developed, EMS_Frame, date, "Developed")
+            temp_Developed = temp_Developed.select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
                                                                                         "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"]))
-            temp_Emerging = Equity_Minimum_Size(temp_Emerging).select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
+            
+
+            temp_Emerging, EMS_Frame = Equity_Minimum_Size(temp_Emerging, EMS_Frame, date, "Emerging")
+            temp_Emerging = temp_Emerging.select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
                                                                                         "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"]))
 
             ##################################
@@ -1193,9 +1232,9 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             ##########Apply EMS Screen#########
             ###################################
 
-            temp_Developed = Equity_Minimum_Size(temp_Developed).select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
+            temp_Developed = Equity_Minimum_Size(temp_Developed, EMS_Frame).select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
                                                                                         "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"]))
-            temp_Emerging = Equity_Minimum_Size(temp_Emerging).select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
+            temp_Emerging = Equity_Minimum_Size(temp_Emerging, EMS_Frame).select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Instrument_Name", 
                                                                                         "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"]))
 
             ##################################
@@ -1315,5 +1354,13 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 ).sort("Count", descending=True))
 
 # Store Investable Universe Emerging
-Screened_Securities.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Code_Output\Investable_Universe_FOR_Applied.csv")
-Output_Standard_Index.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Code_Output\Standard_Index_FOR_Applied.csv")
+Output_Standard_Index = Output_Standard_Index.with_columns(
+                            pl.lit("Standard").alias("Size")
+)
+Screened_Securities = Screened_Securities.filter(pl.col("Segment") == "Emerging").join(Output_Standard_Index.select(pl.col(["Date", "Internal_Number", "Country", "Size"])
+                                                ), on=["Date", "Internal_Number"], how="left").with_columns(
+                                                    pl.col("Size").fill_null("Small")
+                                                ).filter(pl.col("Size") == "Small")
+
+# Add information for Weight
+Screened_Securities = Screened_Securities.join(SW_ACALLCAP)
