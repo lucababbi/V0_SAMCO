@@ -79,8 +79,11 @@ def FOR_Sreening(Frame: pl.DataFrame, Full_Frame: pl.DataFrame, Pivot_TOR, Stand
             Failing_Securities = Failing_Securities.with_columns(
                                         (pl.col("Free_Float_MCAP_USD_Cutoff") >= Country_Cutoff).alias("Screen")
             )
-            
-    return Frame
+
+            # Filter out the Securities not passing the Screen
+            temp_Frame = temp_Frame.filter(~pl.col("Internal_Number").is_in(Failing_Securities.filter(pl.col("Screen") == False)))
+
+    return temp_Frame
 
 
 ##################################
