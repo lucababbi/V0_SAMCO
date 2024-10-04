@@ -1069,12 +1069,12 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             ###################################
 
             # # Filter for FOR_FF >= FOR_FF
-            # temp_Developed = temp_Developed.with_columns(
-            #                     (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
-            #                     ).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
-            # temp_Emerging = temp_Emerging.with_columns(
-            #                     (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
-            #                     ).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
+            temp_Developed = temp_Developed.with_columns(
+                                (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
+                                ).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
+            temp_Emerging = temp_Emerging.with_columns(
+                                (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
+                                ).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
 
             ###################################
             ##########Apply EMS Screen#########
@@ -1182,12 +1182,12 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             ###################################
 
             # # Filter for FOR_FF >= FOR_FF
-            # temp_Developed = temp_Developed.with_columns(
-            #                     (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
-            #                     ).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
-            # temp_Emerging = temp_Emerging.with_columns(
-            #                     (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
-            #                     ).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
+            temp_Developed = temp_Developed.with_columns(
+                                (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
+                                ).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
+            temp_Emerging = temp_Emerging.with_columns(
+                                (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF")
+                                ).filter(pl.col("FOR_FF") >= FOR_FF_Screen)
 
             ###################################
             ##########Apply EMS Screen#########
@@ -1315,5 +1315,5 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 ).sort("Count", descending=True))
 
 # Store Investable Universe Emerging
-Screened_Securities.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Code_Output\Investable_Universe.csv")
-Output_Standard_Index.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Code_Output\Standard_Index.csv")
+Screened_Securities.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Code_Output\Investable_Universe_FOR_Applied.csv")
+Output_Standard_Index.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Code_Output\Standard_Index_FOR_Applied.csv")
