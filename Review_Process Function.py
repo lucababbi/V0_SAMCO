@@ -32,6 +32,8 @@ def FOR_Sreening(Frame: pl.DataFrame, Full_Frame: pl.DataFrame, Pivot_TOR, Stand
     # List of Unique Dates
     Dates_List = Pivot_TOR.index.to_list()
 
+    Screened_Frame = pl.DataFrame()
+
     # Loop for all the Countries
     for country in Frame.select(["Country"]).unique().sort("Country").to_series():
 
@@ -40,7 +42,7 @@ def FOR_Sreening(Frame: pl.DataFrame, Full_Frame: pl.DataFrame, Pivot_TOR, Stand
                                 (pl.col("Free_Float") * pl.col("Capfactor")).alias("FOR_FF"))
         
         # List of the current traded Securities
-        Full_Frame = Full_Frame.filter((pl.col("Date") == date) & (pl.col("Country") == country)).select(pl.col(
+        Full_Frame_Country = Full_Frame.filter((pl.col("Date") == date) & (pl.col("Country") == country)).select(pl.col(
             ["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"])).group_by(
                                                     ["Date", "ENTITY_QID"]).agg([
                                                         pl.col("Country").first().alias("Country"),
@@ -65,26 +67,55 @@ def FOR_Sreening(Frame: pl.DataFrame, Full_Frame: pl.DataFrame, Pivot_TOR, Stand
                                                         pl.col("Country").first().alias("Country"),
                                                         pl.col("Internal_Number").first().alias("Internal_Number")
                                                     ]).join(
-                                    Full_Frame.select(pl.col(["ENTITY_QID", "Free_Float_MCAP_USD_Cutoff_Company", "Full_MCAP_USD_Cutoff_Company"])), 
+                                    Full_Frame_Country.select(pl.col(["ENTITY_QID", "Free_Float_MCAP_USD_Cutoff_Company", "Full_MCAP_USD_Cutoff_Company"])), 
                                     on=["ENTITY_QID"], how="left").filter((pl.col("Free_Float_MCAP_USD_Cutoff_Company") > 0) & (pl.col("Full_MCAP_USD_Cutoff_Company") > 0)
                                     ).sort("Full_MCAP_USD_Cutoff_Company", descending=True)                          
             
-            # Count the Companies that made it in the previous Basket
-            Previous_Count = len(Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") == Previous_Date))) - 1
+            # Case where Investable_Index is NULL
+            if len(Investable_Index) > 0:
 
-            # Find the Country_Cutoff ["Full_MCAP_USD_Cutoff_Company"]
-            Country_Cutoff = Investable_Index.sort("Full_MCAP_USD_Cutoff_Company", descending=True).row(Previous_Count)[Investable_Index.columns.index("Full_MCAP_USD_Cutoff_Company")] / 2
+                # Count the Companies that made it in the previous Basket
+                Previous_Count = len(Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") == Previous_Date))) - 1
 
-            # Check if the Failing_Securities have a Free_Float_MCAP_USD_Cutoff >= than the Country_Cutoff
-            Failing_Securities = Failing_Securities.with_columns(
-                                        (pl.col("Free_Float_MCAP_USD_Cutoff") >= Country_Cutoff).alias("Screen")
-            )
 
-            # Filter out the Securities not passing the Screen
-            temp_Frame = temp_Frame.filter(~pl.col("Internal_Number").is_in(Failing_Securities.filter(pl.col("Screen") == False)))
+                # Ensure Previous_Count is within bounds
+                if Previous_Count >= Investable_Index.height:
+                    # Take the last row if Previous_Count exceeds the DataFrame length
+                    Previous_Count = Investable_Index.height - 1
 
-    return temp_Frame
+                # Find the Country_Cutoff ["Full_MCAP_USD_Cutoff_Company"]
+                Country_Cutoff = Investable_Index.sort("Full_MCAP_USD_Cutoff_Company", descending=True).row(Previous_Count)[Investable_Index.columns.index("Full_MCAP_USD_Cutoff_Company")] / 2
 
+                # Check if the Failing_Securities have a Free_Float_MCAP_USD_Cutoff >= than the Country_Cutoff
+                Failing_Securities = Failing_Securities.with_columns(
+                                            (pl.col("Free_Float_MCAP_USD_Cutoff") >= Country_Cutoff).alias("Screen")
+                )
+
+                # Filter out the Securities not passing the Screen
+                temp_Frame = temp_Frame.filter(
+                        ~pl.col("Internal_Number").is_in(
+                            Failing_Securities.filter(pl.col("Screen") == False).select("Internal_Number").to_series()
+                        )
+                    )
+
+            else: # If Country is newly added
+
+                # Check if the Failing_Securities have a Free_Float_MCAP_USD_Cutoff >= than the Country_Cutoff
+                Failing_Securities = Failing_Securities.with_columns(
+                                            (pl.col("Free_Float_MCAP_USD_Cutoff") >= FOR_FF_Screen).alias("Screen")
+                )
+
+                # Filter out the Securities not passing the Screen
+                temp_Frame = temp_Frame.filter(
+                        ~pl.col("Internal_Number").is_in(
+                            Failing_Securities.filter(pl.col("Screen") == False).select("Internal_Number").to_series()
+                        )
+                    )
+
+        # Stack the resulting Frame
+        Screened_Frame = Screened_Frame.vstack(temp_Frame)
+            
+    return Screened_Frame
 
 ##################################
 #######China A Securities#########
@@ -360,77 +391,87 @@ def Deletion_Rule(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Li
     # Declare initial number of Companies to be deleted
     Companies_To_Delete = 1
 
-    # Check if there are Companies in between Left and Right Limit
-    if len(TopPercentage.filter((pl.col("CumWeight_Cutoff") >= Left_Limit) & (pl.col("CumWeight_Cutoff") <= Right_Limit))) > 0:
-           
-        # Iterate and check the condition, allowing for a minimum of 1 if the condition is met
-        while Companies_To_Delete <= Maximum_Deletion:
+    # Case where at least we have 2 Companies #
+    ### To be verified ###
 
-            # If removing Companies lands us inside the CumWeight Right_Limit, we allow Companies_To_Delete to be 1
-            TopPercentage_Trimmed = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
+    if len(TopPercentage) > 1:
 
-            if Left_Limit <= TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] <= Right_Limit:
-
-                break  # Break the loop once the condition is met
-
-            else: 
-                # Try to increase Companies_To_Delete by 1 (up to the rounded 5% cap)
-                Companies_To_Delete += 1
-
-        # Assign the new trimmed Frame to the original TopPercentage
-        TopPercentage = TopPercentage_Trimmed
-
-                    
-        TopPercentage = TopPercentage.with_columns(
-                                            pl.lit("Below - Companies in between Upper and Lower GMSR").alias("Case")
-                )
-
-    # If there are no Companies in between Left and Right Limit
-    else:
-
-        # Iterate and check the condition, allowing for a minimum of 1 if the condition is met
-        while Companies_To_Delete <= Maximum_Deletion:
+        # Check if there are Companies in between Left and Right Limit
+        if len(TopPercentage.filter((pl.col("CumWeight_Cutoff") >= Left_Limit) & (pl.col("CumWeight_Cutoff") <= Right_Limit))) > 0:
             
-            if (TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] < TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0]) & \
-                (TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] >= Right_Limit):
+            # Iterate and check the condition, allowing for a minimum of 1 if the condition is met
+            while Companies_To_Delete <= Maximum_Deletion:
 
-                # If CumWeight_Cutoff is still above or equal to Left_Limit, proceed
-                TopPercentage = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
+                # If removing Companies lands us inside the CumWeight Right_Limit, we allow Companies_To_Delete to be 1
+                TopPercentage_Trimmed = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
 
-                # Try to increase Companies_To_Delete by 1 (up to the rounded 5% cap)
-                Companies_To_Delete += 1
+                if Left_Limit <= TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] <= Right_Limit:
 
-            else:
-                # If the CumWeight_Cutoff falls below Left_Limit, stop increasing Companies_To_Delete
-                # Handle the situation (e.g., revert to the previous state, or stop deletion)
-                print("Reached below Left_Limit. Stopping deletion.")
-                break
+                    break  # Break the loop once the condition is met
 
+                else: 
+                    # Try to increase Companies_To_Delete by 1 (up to the rounded 5% cap)
+                    Companies_To_Delete += 1
+
+            # Assign the new trimmed Frame to the original TopPercentage
+            TopPercentage = TopPercentage_Trimmed
+
+                        
+            TopPercentage = TopPercentage.with_columns(
+                                                pl.lit("Below - Companies in between Upper and Lower GMSR").alias("Case")
+                    )
+
+        # If there are no Companies in between Left and Right Limit
+        else:
+
+            # Iterate and check the condition, allowing for a minimum of 1 if the condition is met
+            while Companies_To_Delete <= Maximum_Deletion:
+                
+                if (TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] < TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0]) & \
+                    (TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] >= Right_Limit):
+
+                    # If CumWeight_Cutoff is still above or equal to Left_Limit, proceed
+                    TopPercentage = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
+
+                    # Try to increase Companies_To_Delete by 1 (up to the rounded 5% cap)
+                    Companies_To_Delete += 1
+
+                else:
+                    # If the CumWeight_Cutoff falls below Left_Limit, stop increasing Companies_To_Delete
+                    # Handle the situation (e.g., revert to the previous state, or stop deletion)
+                    print("Reached below Left_Limit. Stopping deletion.")
+                    break
+
+            TopPercentage = TopPercentage.with_columns(
+                                                pl.lit("Below - Companies in between Upper and Lower GMSR").alias("Case")
+                                                    )
+        
+        # Check if last Company Full_MCAP_USD_Cutoff is below Lower_GMSR
+        if TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] < Lower_GMSR:
+            # Calculate Maximum # of Companies that can be deleted  
+            Maximum_Deletion = int(round(len(TopPercentage) * 0.20))
+
+            # In case the nearest Integer is 0, adjust it to 2
+            if (Maximum_Deletion < 2): Maximum_Deletion = 2
+
+            # Declare initial number of Companies to be deleted
+            Companies_To_Delete = 1
+
+            # Iterate and check the condition, allowing for a minimum of 1 if the condition is met
+            while Companies_To_Delete <= Maximum_Deletion:
+                if TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Lower_GMSR:
+                    # If CumWeight_Cutoff is still above or equal to Left_Limit, proceed
+                    TopPercentage = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
+                    break  # Break the loop once the condition is met
+
+                else:
+                    # Try to increase Companies_To_Delete by 1 (up to the rounded 20% cap)
+                    Companies_To_Delete += 1
+
+    else:
         TopPercentage = TopPercentage.with_columns(
-                                            pl.lit("Below - Companies in between Upper and Lower GMSR").alias("Case")
-                                                  )
-     
-    # Check if last Company Full_MCAP_USD_Cutoff is below Lower_GMSR
-    if TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] < Lower_GMSR:
-        # Calculate Maximum # of Companies that can be deleted  
-        Maximum_Deletion = int(round(len(TopPercentage) * 0.20))
-
-        # In case the nearest Integer is 0, adjust it to 2
-        if (Maximum_Deletion < 2): Maximum_Deletion = 2
-
-        # Declare initial number of Companies to be deleted
-        Companies_To_Delete = 1
-
-        # Iterate and check the condition, allowing for a minimum of 1 if the condition is met
-        while Companies_To_Delete <= Maximum_Deletion:
-            if TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Lower_GMSR:
-                # If CumWeight_Cutoff is still above or equal to Left_Limit, proceed
-                TopPercentage = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
-                break  # Break the loop once the condition is met
-
-            else:
-                # Try to increase Companies_To_Delete by 1 (up to the rounded 20% cap)
-                Companies_To_Delete += 1
+                                    pl.lit("Number of Companies equal to 1 - No Deletion").alias("Case")
+        )
 
     return TopPercentage
     
@@ -460,6 +501,20 @@ def Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR):
 
         # Country_GMSR is the Upper_GMSR / 2
         Country_GMSR = Upper_GMSR / 2
+
+        # Check which Companies are below the Country_GMSR
+        TopPercentage = TopPercentage.with_columns(
+            pl.when(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_GMSR)
+            .then(True)
+            .otherwise(None)
+            .alias("Shadow_Company")
+        )
+
+    # Case below the box
+    else:
+
+        # Country_GMSR is the GMSR / 2
+        Country_GMSR = GMSR_Frame.filter(pl.col("Date") == date).select(pl.col("GMSR_Emerging")).to_numpy()[0][0] / 2
 
         # Check which Companies are below the Country_GMSR
         TopPercentage = TopPercentage.with_columns(
@@ -884,6 +939,10 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
             # Merge the initial Frame with the additions
             if len(TopPercentage_Extension) > 0:
                 TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))
+            else:
+                TopPercentage = TopPercentage.with_columns(
+                                    pl.lit("Addition").alias("Size")
+                )
 
             TopPercentage = TopPercentage.with_columns(
                                     pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case")
@@ -1278,7 +1337,6 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"), on=["Date", "ENTITY_QID"], how="left"
             )
 
-
         # Following Reviews where Index is rebalanced
         else:
 
@@ -1433,3 +1491,27 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                         pl.len().alias("Count"),
                         pl.col("Date").first().alias("Date")
                     ).sort("Count", descending=True))
+
+            #################################
+            ###########Assign Size###########
+            #################################
+
+            Standard_Index = Standard_Index.vstack(temp_Emerging.filter(pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))).join(
+                Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"), on=["Date", "ENTITY_QID"], how="left"
+            ))
+            Small_Index = Small_Index.vstack(temp_Emerging.filter(~pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))).join(
+                Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"), on=["Date", "ENTITY_QID"], how="left"
+            ))
+
+
+Small_Index = Small_Index.join(pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\STXWAGV_Review.parquet").with_columns(
+    pl.col("Date").cast(pl.Date)).select(pl.col(["Date", "Internal_Number", "Mcap_Units_Index_Currency"])), 
+    on=["Date", "Internal_Number"], how="left").join(Emerging.select(pl.col(["Date", "Internal_Number", "ISIN", "SEDOL"])),
+    on=["Date", "Internal_Number"], how="left").write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index.csv")
+
+# Capfactor from SWACALLCAP
+CapFactor = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Capfactor_SWACALLCAP.csv").with_columns(
+    pl.col("Date").cast(pl.Date)
+).select(pl.col(["Date", "Internal_Number", "Capfactor"]))
+
+Small_Index
