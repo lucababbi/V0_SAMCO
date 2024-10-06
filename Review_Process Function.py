@@ -4,6 +4,8 @@ from datetime import date
 import matplotlib.pyplot as plt
 from pandasql import sqldf
 import datetime
+import glob
+import os
 
 ##################################
 ###########Parameters#############
@@ -20,9 +22,11 @@ FOR_FF_Screen = 0.15
 
 Screen_TOR = True
 
-Excel_Recap = False
-Excel_Recap_Rebalancing = False
-Output_File = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\TopPercentage_Report_Rebalancing.xlsx"
+Excel_Recap = True
+Excel_Recap_Rebalancing = True
+
+Country_Plotting = "PK"
+Output_File = rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\TopPercentage_Report_Rebalancing_{Country_Plotting}.xlsx"
 
 ##################################
 #########FOR Screening############
@@ -579,7 +583,7 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
                                     pl.lit("Inside").alias("Case")
         )
 
-        if Excel_Recap == True:
+        if Excel_Recap == True and country == Country_Plotting:
 
             # Save DataFrame to Excel
             TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
@@ -589,7 +593,7 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
             # Insert the chart into the Excel file
             workbook = writer.book
             worksheet = writer.sheets[f'{date}_{country}']
-            worksheet.insert_image('M2', chart_file)
+            worksheet.insert_image('O2', chart_file)
 
     # Case where we land below the box
     elif (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] < Lower_GMSR):
@@ -605,7 +609,7 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
                                     pl.lit("Below").alias("Case")
         )
 
-        if Excel_Recap == True:
+        if Excel_Recap == True and country == Country_Plotting:
 
             # Save DataFrame to Excel
             TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
@@ -615,7 +619,7 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
             # Insert the chart into the Excel file
             workbook = writer.book
             worksheet = writer.sheets[f'{date}_{country}']
-            worksheet.insert_image('M2', chart_file)
+            worksheet.insert_image('O2', chart_file)
 
     # Case where we land above the box
     elif (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] > Upper_GMSR):
@@ -647,7 +651,7 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
                                     pl.lit("Above - Companies in between Upper and Lower GMSR").alias("Case")
                     )
 
-            if Excel_Recap == True:
+            if Excel_Recap == True and country == Country_Plotting:
 
                 # Save DataFrame to Excel
                 TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
@@ -657,7 +661,7 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
                 # Insert the chart into the Excel file
                 workbook = writer.book
                 worksheet = writer.sheets[f'{date}_{country}']
-                worksheet.insert_image('M2', chart_file)
+                worksheet.insert_image('O2', chart_file)
 
         # Case where we do not have any company in between the Upper and Lower GMSR
         elif len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff_Company") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR))) == 0:
@@ -683,7 +687,7 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
                                     pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case")
                     )
             
-            if Excel_Recap == True:
+            if Excel_Recap == True and country == Country_Plotting:
 
                 # Save DataFrame to Excel
                 TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
@@ -693,7 +697,7 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
                 # Insert the chart into the Excel file
                 workbook = writer.book
                 worksheet = writer.sheets[f'{date}_{country}']
-                worksheet.insert_image('M2', chart_file)
+                worksheet.insert_image('O2', chart_file)
 
     return TopPercentage
 
@@ -911,7 +915,8 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
                     )
 
             # Save DataFrame to Excel
-            TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+            if Excel_Recap_Rebalancing == True and country == Country_Plotting:
+                TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
 
         # In case there are no Companies in between the Upper and Lower GMSR
         elif len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff_Company") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR))) == 0:
@@ -1311,6 +1316,9 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             ##Start the Size Classification##
             #################################
 
+            # Store the Screened Securities for Checks
+            Stored_Securities = temp_Emerging_Aggregate.filter(pl.col("Country") == Country_Plotting)
+
             Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
             Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
 
@@ -1366,7 +1374,6 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             ).vstack(temp_Developed.filter(~pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))).join(
                 Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"), on=["Date", "ENTITY_QID"], how="left"))
             
-
         # Following Reviews where Index is rebalanced
         else:
 
@@ -1462,6 +1469,9 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             ##Start the Size Classification##
             #################################
 
+            # Store the Screened Securities for Checks
+            Stored_Securities = Stored_Securities.vstack(temp_Emerging_Aggregate.filter(pl.col("Country") == Country_Plotting))
+
             # Emerging #
             Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
             Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
@@ -1476,7 +1486,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
                     TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
 
-                    if Excel_Recap_Rebalancing == True:
+                    if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
                         # Save DataFrame to Excel
                         TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
@@ -1486,7 +1496,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                         # Insert the chart into the Excel file
                         workbook = writer.book
                         worksheet = writer.sheets[f'{date}_{country}']
-                        worksheet.insert_image('M2', chart_file)
+                        worksheet.insert_image('O2', chart_file)
 
                     # Stack to Output_Standard_Index
                     Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
@@ -1504,7 +1514,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
                     TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
 
-                    if Excel_Recap_Rebalancing == True:
+                    if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
                         # Save DataFrame to Excel
                         TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
@@ -1514,7 +1524,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                         # Insert the chart into the Excel file
                         workbook = writer.book
                         worksheet = writer.sheets[f'{date}_{country}']
-                        worksheet.insert_image('M2', chart_file)
+                        worksheet.insert_image('O2', chart_file)
 
                     # Stack to Output_Standard_Index
                     Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
@@ -1539,7 +1549,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
                     TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
 
-                    if Excel_Recap_Rebalancing == True:
+                    if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
                         # Save DataFrame to Excel
                         TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
@@ -1549,7 +1559,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                         # Insert the chart into the Excel file
                         workbook = writer.book
                         worksheet = writer.sheets[f'{date}_{country}']
-                        worksheet.insert_image('M2', chart_file)
+                        worksheet.insert_image('O2', chart_file)
 
                     # Stack to Output_Standard_Index
                     Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
@@ -1567,7 +1577,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
                     TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
 
-                    if Excel_Recap_Rebalancing == True:
+                    if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
                         # Save DataFrame to Excel
                         TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
@@ -1577,7 +1587,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                         # Insert the chart into the Excel file
                         workbook = writer.book
                         worksheet = writer.sheets[f'{date}_{country}']
-                        worksheet.insert_image('M2', chart_file)
+                        worksheet.insert_image('O2', chart_file)
 
                     # Stack to Output_Standard_Index
                     Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
@@ -1604,7 +1614,10 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"), on=["Date", "ENTITY_QID"], how="left"
             ))
 
-
+    # Add Recap_GMSR_Frame to Excel
+    Stored_Securities.to_pandas().to_excel(writer, sheet_name="Historical_Screened_Securities", index=False)
+    GMSR_Frame.to_pandas().to_excel(writer, sheet_name="GMSR_Historical", index=False)
+    
 # Filter the Securities from Company Level
 Small_Index_Security_Level = Emerging.select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Capfactor", "ISIN", "SEDOL"])).join(Small_Index.filter(
     pl.col("Country").is_in(Emerging.select(pl.col("Country").unique()))
@@ -1646,3 +1659,18 @@ Recap = (
 # Store the Results
 Small_Index_Security_Level.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level.csv")
 Recap.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap.csv")
+GMSR_Frame.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\GMSR_Frame.csv")
+
+# Delete .PNG from main folder
+Main_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO"
+
+# Use glob to find all PNG files in the folder
+PNG_Files = glob.glob(os.path.join(Main_path, '*.PNG'))
+
+# Iterate over the list of PNG files and remove them
+for file in PNG_Files:
+    try:
+        os.remove(file)
+        print(f"Deleted: {file}")
+    except Exception as e:
+        print(f"Error deleting file {file}: {e}")
