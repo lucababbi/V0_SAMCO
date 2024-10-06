@@ -945,7 +945,8 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
                 )
 
             TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case")
+                                    pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case"),
+                                    pl.lit("Addition").alias("Size")
                     )
         
     # Case where we below above the box #
@@ -1155,6 +1156,8 @@ Developed = Developed.filter(pl.col("Free_Float_MCAP_USD_Cutoff") > 0)
 GMSR_Frame = pl.DataFrame({
                             "Date": pl.Series(dtype=pl.Date),
                             "GMSR_Developed": pl.Series(dtype=pl.Float64),
+                            "GMSR_Developed_Upper": pl.Series(dtype=pl.Float64),
+                            "GMSR_Developed_Lower": pl.Series(dtype=pl.Float64),
                             "GMSR_Emerging": pl.Series(dtype=pl.Float64),
                             "GMSR_Emerging_Upper": pl.Series(dtype=pl.Float64),
                             "GMSR_Emerging_Lower": pl.Series(dtype=pl.Float64),
@@ -1295,6 +1298,8 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             New_Data = pl.DataFrame({
                                         "Date": [date],
                                         "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
+                                        "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
+                                        "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
                                         "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
                                         "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
                                         "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
@@ -1309,6 +1314,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
             Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
 
+            # Emerging #
             for country in temp_Emerging_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
             
                 TopPercentage = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
@@ -1325,6 +1331,26 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                         pl.col("Date").first().alias("Date")
                     ).sort("Count", descending=True))
 
+            # Developed #
+            Lower_GMSR = GMSR_Frame.select(["GMSR_Developed_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+            Upper_GMSR = GMSR_Frame.select(["GMSR_Developed_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+
+            # Developed #
+            for country in temp_Developed_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
+            
+                TopPercentage = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+
+                # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
+                TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
+
+                # Stack to Output_Standard_Index
+                Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage)
+
+                # Create the Output_Count_Standard_Index for future rebalacing
+                Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
+                        pl.len().alias("Count"),
+                        pl.col("Date").first().alias("Date")
+                    ).sort("Count", descending=True))
 
             #################################
             ###########Assign Size###########
@@ -1332,10 +1358,14 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
 
             Standard_Index = temp_Emerging.filter(pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))).join(
                 Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"), on=["Date", "ENTITY_QID"], how="left"
-            )
+            ).vstack(temp_Developed.filter(pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))).join(
+                Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"), on=["Date", "ENTITY_QID"], how="left"))
+            
             Small_Index = temp_Emerging.filter(~pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))).join(
                 Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"), on=["Date", "ENTITY_QID"], how="left"
-            )
+            ).vstack(temp_Developed.filter(~pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))).join(
+                Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"), on=["Date", "ENTITY_QID"], how="left"))
+            
 
         # Following Reviews where Index is rebalanced
         else:
@@ -1371,7 +1401,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             ###################################
 
             # # Filter for FOR FF Screening
-            # temp_Developed = FOR_Sreening(temp_Developed, Developed, Pivot_TOR, Standard_Index, Small_Index, date, "Developed")
+            temp_Developed = FOR_Sreening(temp_Developed, Developed, Pivot_TOR, Standard_Index, Small_Index, date, "Developed")
             temp_Emerging = FOR_Sreening(temp_Emerging, Emerging, Pivot_TOR, Standard_Index, Small_Index, date, "Emerging")
 
             ##################################
@@ -1419,6 +1449,8 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             New_Data = pl.DataFrame({
                                         "Date": [date],
                                         "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
+                                        "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
+                                        "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
                                         "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
                                         "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
                                         "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
@@ -1430,6 +1462,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             ##Start the Size Classification##
             #################################
 
+            # Emerging #
             Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
             Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
 
@@ -1492,14 +1525,82 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                         pl.col("Date").first().alias("Date")
                     ).sort("Count", descending=True))
 
+            # Developed #
+            Lower_GMSR = GMSR_Frame.select(["GMSR_Developed_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+            Upper_GMSR = GMSR_Frame.select(["GMSR_Developed_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+
+            for country in temp_Developed_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
+
+                # Check if there is already a previous Index creation for the current country
+                if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") < date))) > 0:
+
+                    TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Developed_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+
+                    # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
+                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
+
+                    if Excel_Recap_Rebalancing == True:
+
+                        # Save DataFrame to Excel
+                        TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+                        # Create and save the chart
+                        chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
+
+                        # Insert the chart into the Excel file
+                        workbook = writer.book
+                        worksheet = writer.sheets[f'{date}_{country}']
+                        worksheet.insert_image('M2', chart_file)
+
+                    # Stack to Output_Standard_Index
+                    Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
+                    
+                    # Create the Output_Count_Standard_Index for future rebalacing
+                    Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
+                        pl.len().alias("Count"),
+                        pl.col("Date").first().alias("Date")
+                    ).sort("Count", descending=True))
+                
+                # If there is no composition, a new Index will be created
+                else:
+                    TopPercentage = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+                    
+                    # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
+                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
+
+                    if Excel_Recap_Rebalancing == True:
+
+                        # Save DataFrame to Excel
+                        TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+                        # Create and save the chart
+                        chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
+
+                        # Insert the chart into the Excel file
+                        workbook = writer.book
+                        worksheet = writer.sheets[f'{date}_{country}']
+                        worksheet.insert_image('M2', chart_file)
+
+                    # Stack to Output_Standard_Index
+                    Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
+                    
+                    # Create the Output_Count_Standard_Index for future rebalacing
+                    Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
+                        pl.len().alias("Count"),
+                        pl.col("Date").first().alias("Date")
+                    ).sort("Count", descending=True))
+
             #################################
             ###########Assign Size###########
             #################################
 
             Standard_Index = Standard_Index.vstack(temp_Emerging.filter(pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))).join(
                 Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"), on=["Date", "ENTITY_QID"], how="left"
+            )).vstack(temp_Developed.filter(pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))).join(
+                Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"), on=["Date", "ENTITY_QID"], how="left"
             ))
+
             Small_Index = Small_Index.vstack(temp_Emerging.filter(~pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))).join(
+                Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"), on=["Date", "ENTITY_QID"], how="left"
+            )).vstack(temp_Developed.filter(~pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))).join(
                 Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"), on=["Date", "ENTITY_QID"], how="left"
             ))
 
@@ -1507,11 +1608,8 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
 Small_Index = Small_Index.join(pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\STXWAGV_Review.parquet").with_columns(
     pl.col("Date").cast(pl.Date)).select(pl.col(["Date", "Internal_Number", "Mcap_Units_Index_Currency"])), 
     on=["Date", "Internal_Number"], how="left").join(Emerging.select(pl.col(["Date", "Internal_Number", "ISIN", "SEDOL"])),
-    on=["Date", "Internal_Number"], how="left").write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index.csv")
+    on=["Date", "Internal_Number"], how="left")
 
-# Capfactor from SWACALLCAP
-CapFactor = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Capfactor_SWACALLCAP.csv").with_columns(
-    pl.col("Date").cast(pl.Date)
-).select(pl.col(["Date", "Internal_Number", "Capfactor"]))
+Small_Index_Emerging = Emerging.select(pl.col(["Date", "ENTITY_QID"]).join(Small_Index.filter(pl.col("Country").is_in(Emerging.select(pl.col("Country")).unique().sort("Country").to_series()))
 
-Small_Index
+
