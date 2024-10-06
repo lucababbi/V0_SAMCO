@@ -9,7 +9,7 @@ CapFactor = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\
 ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).to_pandas()
 
 # Create the iStudio input
-Small_Index = pd.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index.csv", parse_dates=["Date"])
+Small_Index = pd.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level.csv", parse_dates=["Date"])
 
 # Filter for needed columns
 Frame = Small_Index[["Internal_Number", "SEDOL", "ISIN", "Date"]]

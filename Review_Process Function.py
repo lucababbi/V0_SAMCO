@@ -1605,11 +1605,44 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             ))
 
 
-Small_Index = Small_Index.join(pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\STXWAGV_Review.parquet").with_columns(
-    pl.col("Date").cast(pl.Date)).select(pl.col(["Date", "Internal_Number", "Mcap_Units_Index_Currency"])), 
-    on=["Date", "Internal_Number"], how="left").join(Emerging.select(pl.col(["Date", "Internal_Number", "ISIN", "SEDOL"])),
-    on=["Date", "Internal_Number"], how="left")
+# Filter the Securities from Company Level
+Small_Index_Security_Level = Emerging.select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Capfactor", "ISIN", "SEDOL"])).join(Small_Index.filter(
+    pl.col("Country").is_in(Emerging.select(pl.col("Country").unique()))
+), on=["Date", "ENTITY_QID"], how="semi")
 
-Small_Index_Emerging = Emerging.select(pl.col(["Date", "ENTITY_QID"]).join(Small_Index.filter(pl.col("Country").is_in(Emerging.select(pl.col("Country")).unique().sort("Country").to_series()))
+# Add information of CapFactor/Mcap_Units_Index_Currency
+Small_Index_Security_Level = Small_Index_Security_Level.join(pl.read_parquet(
+    r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\STXWAGV_Review.parquet").with_columns(
+        pl.col("Date").cast(pl.Date)
+    ), on=["Date", "Internal_Number"], how="left")
 
+# Remove China A / CCS
+Small_Index_Security_Level = Small_Index_Security_Level.filter(
+    ~(
+        (pl.col("Country") == "CN") &
+        (
+            pl.col("Instrument_Name").str.contains("'A'") |
+            pl.col("Instrument_Name").str.contains("(CCS)")
+        )))
 
+# Calculate the Weights for each Date
+Small_Index_Security_Level = Small_Index_Security_Level.with_columns(
+    (pl.col("Mcap_Units_Index_Currency") / pl.col("Mcap_Units_Index_Currency").sum().over("Date")).alias("Weight")
+)
+
+# Create a Recap
+Recap = (
+    Small_Index_Security_Level
+    .group_by(["Country", "Date"])
+    .agg(pl.col("Weight").sum().alias("Sum_Weight"))
+    .sort("Date")  # Sort by Date to ensure columns are ordered from oldest to newest
+    .pivot(
+        index="Country",
+        on="Date",
+        values="Sum_Weight"
+    )
+)
+
+# Store the Results
+Small_Index_Security_Level.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level.csv")
+Recap.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap.csv")
