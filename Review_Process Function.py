@@ -6,6 +6,7 @@ from pandasql import sqldf
 import datetime
 import glob
 import os
+import numpy as np
 
 ##################################
 ###########Parameters#############
@@ -19,8 +20,12 @@ Right_Limit = 0.90
 Threshold_NEW = 0.15
 Threshold_OLD = 0.10
 FOR_FF_Screen = 0.15
-
 Screen_TOR = True
+
+# MSCI GMSR Mar_2019
+GMSR_Upper_Buffer = 0.85
+GMSR_Lower_Buffer = 0.87
+GMSR_MSCI = np.float64(6_203 * 1_000_000)
 
 Excel_Recap = True
 Excel_Recap_Rebalancing = True
@@ -1166,6 +1171,7 @@ GMSR_Frame = pl.DataFrame({
                             "GMSR_Emerging": pl.Series(dtype=pl.Float64),
                             "GMSR_Emerging_Upper": pl.Series(dtype=pl.Float64),
                             "GMSR_Emerging_Lower": pl.Series(dtype=pl.Float64),
+                            "Rank": pl.Series(dtype=pl.UInt32)
 })
 
 ##################################
@@ -1297,18 +1303,33 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             )
 
             temp_Developed_Aggregate = temp_Developed_Aggregate.with_columns(
-                                                            (pl.col("Weight_Cutoff").cum_sum()).alias("CumWeight_Cutoff")
+                                                            (pl.col("Weight_Cutoff").cum_sum()).alias("CumWeight_Cutoff"),
+                                                            (-pl.col("Full_MCAP_USD_Cutoff_Company")).rank("dense").alias("Rank")
             )
 
-            New_Data = pl.DataFrame({
-                                        "Date": [date],
-                                        "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
-                                        "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
-                                        "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
-                                        "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
-                                        "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
-                                        "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
-            })
+            # Check if the MSCI_GMSR is between 85% and 87%
+            if GMSR_Upper_Buffer <= temp_Developed_Aggregate.filter(pl.col("Full_MCAP_USD_Cutoff_Company") <= GMSR_MSCI).head(1).select(pl.col("CumWeight_Cutoff")).to_numpy()[0][0] <= GMSR_Lower_Buffer:
+                New_Data = pl.DataFrame({
+                                            "Date": [date],
+                                            "GMSR_Developed": [GMSR_MSCI],
+                                            "GMSR_Developed_Upper": [GMSR_MSCI * Upper_Limit],
+                                            "GMSR_Developed_Lower": [GMSR_MSCI * Lower_Limit], 
+                                            "GMSR_Emerging": [GMSR_MSCI / 2],
+                                            "GMSR_Emerging_Upper": [GMSR_MSCI / 2 * Upper_Limit],
+                                            "GMSR_Emerging_Lower": [GMSR_MSCI / 2 * Lower_Limit],
+                                            "Rank": [temp_Developed_Aggregate.filter(pl.col("Full_MCAP_USD_Cutoff_Company") <= GMSR_MSCI).head(1).select(pl.col("Rank")).to_numpy()[0][0]]
+                })
+            else:
+                New_Data = pl.DataFrame({
+                                            "Date": [date],
+                                            "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
+                                            "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
+                                            "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
+                                            "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
+                                            "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
+                                            "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
+                                            "Rank": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Rank"].to_numpy()[0]]
+                })
 
             GMSR_Frame = GMSR_Frame.vstack(New_Data)
 
