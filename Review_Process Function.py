@@ -14,9 +14,9 @@ import numpy as np
 Starting_Date = date(2019, 3, 18)
 Upper_Limit = 1.15
 Lower_Limit = 0.50
-Percentage = 0.85
-Left_Limit = 0.80
-Right_Limit = 0.90
+Percentage = 0.895
+Left_Limit = Percentage - 0.05
+Right_Limit = Percentage +  0.05
 Threshold_NEW = 0.15
 Threshold_OLD = 0.10
 FOR_FF_Screen = 0.15
@@ -27,6 +27,10 @@ GMSR_Upper_Buffer = 0.85
 GMSR_Lower_Buffer = 0.87
 GMSR_MSCI = np.float64(6_203 * 1_000_000)
 
+# Index Creation Country Coverage Adjustment
+Coverage_Adjustment = True
+
+# Excel Setter
 Excel_Recap = True
 Excel_Recap_Rebalancing = True
 
@@ -252,75 +256,86 @@ def Equity_Minimum_Size(df: pl.DataFrame, Pivot_TOR, EMS_Frame, date, Segment: p
         pl.col("Free_Float_MCAP_USD_Cutoff_Company").cum_sum().alias("Cumulative_Free_Float_MCAP_USD_Cutoff_Company"),
         (pl.col("Free_Float_MCAP_USD_Cutoff_Company").cum_sum() / pl.col("Free_Float_MCAP_USD_Cutoff_Company").sum()).alias("Cumulative_Coverage_Cutoff")
     ])
+
+    if Segment == "Developed":
     
-    total_market_cap = df_date.select(pl.col("Free_Float_MCAP_USD_Cutoff_Company").sum()).to_numpy()[0][0]
-    
-    if previous_rank is None:
-        # Initial calculation
-        min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff_Company").head(1)
-        equity_universe_min_size = min_size_company[0, 0]
-        previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
-
-        df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
-            pl.lit(equity_universe_min_size).alias("EUMSR"),
-            pl.lit(previous_rank).alias("EUMSR_Rank")
-        ])
-    else:
-        # Ensure previous_rank - 1 is within the bounds
-        if previous_rank - 1 < len(df_date):
-            previous_row = df_date.row(previous_rank - 1)
-            previous_coverage = previous_row[df_date.columns.index("Cumulative_Free_Float_MCAP_USD_Cutoff_Company")] / total_market_cap
-            
-            if 0.99 <= previous_coverage <= 0.9925:
-                equity_universe_min_size = previous_row[df_date.columns.index("Full_MCAP_USD_Cutoff_Company")]
-                df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
-                    pl.lit(equity_universe_min_size).alias("EUMSR"),
-                    pl.lit(previous_rank).alias("EUMSR_Rank")
-                ])
-            elif previous_coverage < 0.99:
-                min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff_Company").head(1)
-                equity_universe_min_size = min_size_company[0, 0]
-                previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
-
-                df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
-                    pl.lit(equity_universe_min_size).alias("EUMSR"),
-                    pl.lit(previous_rank).alias("EUMSR_Rank")
-                ])
-            else:
-                min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.9925).select("Full_MCAP_USD_Cutoff_Company").head(1)
-                equity_universe_min_size = min_size_company[0, 0]
-                previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
-
-                df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
-                    pl.lit(equity_universe_min_size).alias("EUMSR"),
-                    pl.lit(previous_rank).alias("EUMSR_Rank")
-                ])
-
-        else:
+        total_market_cap = df_date.select(pl.col("Free_Float_MCAP_USD_Cutoff_Company").sum()).to_numpy()[0][0]
+        
+        if previous_rank is None:
+            # Initial calculation
             min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff_Company").head(1)
             equity_universe_min_size = min_size_company[0, 0]
             previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
 
             df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
-                    pl.lit(equity_universe_min_size).alias("EUMSR"),
-                    pl.lit(previous_rank).alias("EUMSR_Rank")
-                ])
+                pl.lit(equity_universe_min_size).alias("EUMSR"),
+                pl.lit(previous_rank).alias("EUMSR_Rank")
+            ])
+        else:
+            # Ensure previous_rank - 1 is within the bounds
+            if previous_rank - 1 < len(df_date):
+                previous_row = df_date.row(previous_rank - 1)
+                previous_coverage = previous_row[df_date.columns.index("Cumulative_Free_Float_MCAP_USD_Cutoff_Company")] / total_market_cap
+                
+                if 0.99 <= previous_coverage <= 0.9925:
+                    equity_universe_min_size = previous_row[df_date.columns.index("Full_MCAP_USD_Cutoff_Company")]
+                    df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
+                        pl.lit(equity_universe_min_size).alias("EUMSR"),
+                        pl.lit(previous_rank).alias("EUMSR_Rank")
+                    ])
+                elif previous_coverage < 0.99:
+                    min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff_Company").head(1)
+                    equity_universe_min_size = min_size_company[0, 0]
+                    previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
 
-    EMS_Frame = EMS_Frame.vstack(pl.DataFrame({
-                                "Date": [date],
-                                "Segment": [Segment],
-                                "EMS": [equity_universe_min_size],
-                                "Rank": [previous_rank],
-                                "FreeFloatMCAP_Minimum_Size": [equity_universe_min_size / 2]
-    }))
-    final_df = pl.concat([final_df, df_date1])
+                    df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
+                        pl.lit(equity_universe_min_size).alias("EUMSR"),
+                        pl.lit(previous_rank).alias("EUMSR_Rank")
+                    ])
+                else:
+                    min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.9925).select("Full_MCAP_USD_Cutoff_Company").head(1)
+                    equity_universe_min_size = min_size_company[0, 0]
+                    previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
 
-    # Keep only Securities/Company that passed the first screen
-    Security_Level_DF = Security_Level_DF.filter(pl.col("ENTITY_QID").is_in(final_df.select(pl.col("ENTITY_QID"))))
+                    df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
+                        pl.lit(equity_universe_min_size).alias("EUMSR"),
+                        pl.lit(previous_rank).alias("EUMSR_Rank")
+                    ])
 
-    # Filter for Securities whose Free_Float_MCAP_USD_Cutoff is >= than FreeFloatMCAP_Minimum_Size
-    Security_Level_DF = Security_Level_DF.filter(pl.col("Free_Float_MCAP_USD_Cutoff") >= EMS_Frame.filter(
-                        (pl.col("Date") == date) & (pl.col("Segment") == Segment)).select(pl.col("FreeFloatMCAP_Minimum_Size")).to_numpy()[0][0])
+            else:
+                min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.99).select("Full_MCAP_USD_Cutoff_Company").head(1)
+                equity_universe_min_size = min_size_company[0, 0]
+                previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
+
+                df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
+                        pl.lit(equity_universe_min_size).alias("EUMSR"),
+                        pl.lit(previous_rank).alias("EUMSR_Rank")
+                    ])
+
+        EMS_Frame = EMS_Frame.vstack(pl.DataFrame({
+                                    "Date": [date],
+                                    "Segment": [Segment],
+                                    "EMS": [equity_universe_min_size],
+                                    "Rank": [previous_rank],
+                                    "FreeFloatMCAP_Minimum_Size": [equity_universe_min_size / 2]
+        }))
+        final_df = pl.concat([final_df, df_date1])
+
+        # Keep only Securities/Company that passed the first screen
+        Security_Level_DF = Security_Level_DF.filter(pl.col("ENTITY_QID").is_in(final_df.select(pl.col("ENTITY_QID"))))
+
+        # Filter for Securities whose Free_Float_MCAP_USD_Cutoff is >= than FreeFloatMCAP_Minimum_Size
+        Security_Level_DF = Security_Level_DF.filter(pl.col("Free_Float_MCAP_USD_Cutoff") >= EMS_Frame.filter(
+                            (pl.col("Date") == date) & (pl.col("Segment") == Segment)).select(pl.col("FreeFloatMCAP_Minimum_Size")).to_numpy()[0][0])
+        
+    elif Segment == "Emerging":
+
+        equity_universe_min_size = EMS_Frame.filter(pl.col("Date") == date).select(pl.col("EMS")).to_numpy()[0][0]
+        FreeFloatMCAP_Minimum_Size = EMS_Frame.filter(pl.col("Date") == date).select(pl.col("FreeFloatMCAP_Minimum_Size")).to_numpy()[0][0]
+        final_df = df.filter((pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size) & (pl.col("Free_Float_MCAP_USD_Cutoff_Company") >= FreeFloatMCAP_Minimum_Size))
+
+        # Keep only Securities/Company that passed the first screen
+        Security_Level_DF = Security_Level_DF.filter(pl.col("ENTITY_QID").is_in(final_df.select(pl.col("ENTITY_QID"))))
     
     return Security_Level_DF, EMS_Frame
 
@@ -411,16 +426,22 @@ def Deletion_Rule(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Li
             # Iterate and check the condition, allowing for a minimum of 1 if the condition is met
             while Companies_To_Delete <= Maximum_Deletion:
 
-                # If removing Companies lands us inside the CumWeight Right_Limit, we allow Companies_To_Delete to be 1
-                TopPercentage_Trimmed = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
+                # Check to have at least 2 Companies
+                if len(TopPercentage.head(len(TopPercentage) - Companies_To_Delete)) > 1:
+                    # If removing Companies lands us inside the CumWeight Right_Limit, we allow Companies_To_Delete to be 1
+                    TopPercentage_Trimmed = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
 
-                if Left_Limit <= TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] <= Right_Limit:
+                    if Left_Limit <= TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] <= Right_Limit:
 
-                    break  # Break the loop once the condition is met
+                        break  # Break the loop once the condition is met
 
-                else: 
-                    # Try to increase Companies_To_Delete by 1 (up to the rounded 5% cap)
-                    Companies_To_Delete += 1
+                    else: 
+                        # Try to increase Companies_To_Delete by 1 (up to the rounded 5% cap)
+                        Companies_To_Delete += 1
+                else:
+                    # In case there is only one Company, we keep only it
+                    TopPercentage_Trimmed = TopPercentage.head(1)
+                    break
 
             # Assign the new trimmed Frame to the original TopPercentage
             TopPercentage = TopPercentage_Trimmed
@@ -436,19 +457,27 @@ def Deletion_Rule(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Li
             # Iterate and check the condition, allowing for a minimum of 1 if the condition is met
             while Companies_To_Delete <= Maximum_Deletion:
                 
-                if (TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] < TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0]) & \
-                    (TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] >= Right_Limit):
+                # Check to have at least 2 Companies
+                if len(TopPercentage.head(len(TopPercentage) - Companies_To_Delete)) > 1:
 
-                    # If CumWeight_Cutoff is still above or equal to Left_Limit, proceed
-                    TopPercentage = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
+                    if (TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] < TopPercentage.tail(1).select("CumWeight_Cutoff").to_numpy()[0][0]) & \
+                        (TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("CumWeight_Cutoff").to_numpy()[0][0] >= Right_Limit):
 
-                    # Try to increase Companies_To_Delete by 1 (up to the rounded 5% cap)
-                    Companies_To_Delete += 1
+                        # If CumWeight_Cutoff is still above or equal to Left_Limit, proceed
+                        TopPercentage = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
+
+                        # Try to increase Companies_To_Delete by 1 (up to the rounded 5% cap)
+                        Companies_To_Delete += 1
+
+                    else:
+                        # If the CumWeight_Cutoff falls below Left_Limit, stop increasing Companies_To_Delete
+                        # Handle the situation (e.g., revert to the previous state, or stop deletion)
+                        print("Reached below Left_Limit. Stopping deletion.")
+                        break
 
                 else:
-                    # If the CumWeight_Cutoff falls below Left_Limit, stop increasing Companies_To_Delete
-                    # Handle the situation (e.g., revert to the previous state, or stop deletion)
-                    print("Reached below Left_Limit. Stopping deletion.")
+                    # In case there is only one Company, we keep only it
+                    TopPercentage_Trimmed = TopPercentage.head(1)
                     break
 
             TopPercentage = TopPercentage.with_columns(
@@ -553,11 +582,17 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
                     (((pl.col("Free_Float_MCAP_USD_Cutoff_Company") / pl.col("Free_Float_MCAP_USD_Cutoff_Company").sum()).cum_sum())).alias("CumWeight_Cutoff")
     )
 
+    # Country Adjustment
+    if Coverage_Adjustment == True:
+        Country_Adjustment = Country_Coverage.filter(pl.col("Country") == country).select(pl.col("Coverage")).to_numpy()[0][0]
+    else:
+        Country_Adjustment = 1
+
     # Check where the top 85% (crossing it) lands us on the Curve
     TopPercentage = temp_Country.select(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company",
                     "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff"]).filter(
-                    pl.col("CumWeight_Cutoff") < Percentage).vstack(temp_Country.select(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", 
-                    "Free_Float_MCAP_USD_Cutoff_Company", "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff"]).filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1))
+                    pl.col("CumWeight_Cutoff") < (Percentage / Country_Adjustment)).vstack(temp_Country.select(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", 
+                    "Free_Float_MCAP_USD_Cutoff_Company", "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff"]).filter(pl.col("CumWeight_Cutoff") >= (Percentage / Country_Adjustment)).head(1))
     
     #################
     # Case Analysis #
@@ -1024,6 +1059,9 @@ Developed = Developed.filter(pl.col("Date") >= Starting_Date)
 ##################################
 Columns = ["validDate", "stoxxId", "currency", "closePrice", "shares"]
 
+# Country Coverage for Index Creation
+Country_Coverage = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Country_Coverage.csv", separator=";")
+
 # Read the Parquet and add the Review Date Column 
 Securities_Cutoff = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Securities_Cutoff\Securities_Cutoff.parquet", columns=Columns).with_columns([
                       pl.col("closePrice").cast(pl.Float64),
@@ -1319,6 +1357,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                                             "GMSR_Emerging_Lower": [GMSR_MSCI / 2 * Lower_Limit],
                                             "Rank": [temp_Developed_Aggregate.filter(pl.col("Full_MCAP_USD_Cutoff_Company") <= GMSR_MSCI).head(1).select(pl.col("Rank")).to_numpy()[0][0]]
                 })
+
             else:
                 New_Data = pl.DataFrame({
                                             "Date": [date],
@@ -1330,6 +1369,9 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                                             "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
                                             "Rank": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Rank"].to_numpy()[0]]
                 })
+
+            # Drop the Rank column
+            temp_Developed_Aggregate = temp_Developed_Aggregate.drop("Rank")
 
             GMSR_Frame = GMSR_Frame.vstack(New_Data)
 
@@ -1471,18 +1513,49 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             )
 
             temp_Developed_Aggregate = temp_Developed_Aggregate.with_columns(
-                                                            (pl.col("Weight_Cutoff").cum_sum()).alias("CumWeight_Cutoff")
+                                                            (pl.col("Weight_Cutoff").cum_sum()).alias("CumWeight_Cutoff"),
+                                                            (-pl.col("Full_MCAP_USD_Cutoff_Company")).rank("dense").alias("Rank")
             )
 
-            New_Data = pl.DataFrame({
-                                        "Date": [date],
-                                        "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
-                                        "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
-                                        "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
-                                        "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
-                                        "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
-                                        "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
-            })
+            # Check if Previous Ranking Company lies between GMSR_Upper_Buffer and GMSR_Lower_Buffer
+            
+            # List of Unique Dates
+            Dates_List = Pivot_TOR.index.to_list()
+            IDX_Current = Dates_List.index(date.strftime("%Y-%m-%d"))
+            Previous_Date = datetime.datetime.strptime(Dates_List[max(0, IDX_Current - 1)], "%Y-%m-%d").date()
+
+            # Retrieve the Previous Rank in the GMSR Frame
+            Previous_Rank_GMSR = GMSR_Frame.filter(pl.col("Date") <= GMSR_MSCI).select(pl.col("Rank")).to_numpy()[0][0]
+
+            # CumWeight_Cutoff of the Previous Rank_GMSR
+            CumWeight_Cutoff_Rank = temp_Developed_Aggregate.filter(pl.col("Rank") == Previous_Rank_GMSR).select(pl.col("CumWeight_Cutoff")).to_numpy()[0][0]
+
+            if GMSR_Upper_Buffer <= CumWeight_Cutoff_Rank <= GMSR_Lower_Buffer:
+                New_Data = pl.DataFrame({   
+                                            "Date": [date],
+                                            "GMSR_Developed": [GMSR_MSCI],
+                                            "GMSR_Developed_Upper": [GMSR_MSCI * Upper_Limit],
+                                            "GMSR_Developed_Lower": [GMSR_MSCI * Lower_Limit], 
+                                            "GMSR_Emerging": [GMSR_MSCI / 2],
+                                            "GMSR_Emerging_Upper": [GMSR_MSCI / 2 * Upper_Limit],
+                                            "GMSR_Emerging_Lower": [GMSR_MSCI / 2 * Lower_Limit],
+                                            "Rank": [temp_Developed_Aggregate.filter(pl.col("Full_MCAP_USD_Cutoff_Company") <= GMSR_MSCI).head(1).select(pl.col("Rank")).to_numpy()[0][0]]
+                                        })
+                
+            else:
+                New_Data = pl.DataFrame({
+                                            "Date": [date],
+                                            "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
+                                            "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
+                                            "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
+                                            "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
+                                            "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
+                                            "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
+                                            "Rank": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Rank"].to_numpy()[0]]
+                })
+
+            # Drop the Rank column
+            temp_Developed_Aggregate = temp_Developed_Aggregate.drop("Rank")
 
             GMSR_Frame = GMSR_Frame.vstack(New_Data)
 
@@ -1684,7 +1757,7 @@ Standard_Index_Security_Level = Standard_Index_Security_Level.with_columns(
 )
 
 # Create a Recap
-Recap = (
+Recap_Count = (
     Small_Index_Security_Level
     .group_by(["Country", "Date"])  # Group by Country and Date
     .agg(pl.col("Internal_Number").count().alias("Sum_Components"))  # Count "Count" column and alias it
@@ -1696,11 +1769,23 @@ Recap = (
     )
 )
 
-# Store the Results
+Recap_Weight = (
+    Small_Index_Security_Level
+    .group_by(["Country", "Date"])  # Group by Country and Date
+    .agg(pl.col("Weight").sum().alias("Weight_Components"))  # Count "Count" column and alias it
+    .sort("Date")  # Ensure sorting by Date for proper column ordering in the pivot
+    .pivot(
+        index="Country",  # Set Country as the row index
+        on="Date",        # Create columns for each unique Date
+        values="Weight_Components"  # Fill in values with Sum_Components
+    )
+)
 
+# Store the Results
 Small_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level_{Percentage}.csv")
 Standard_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard_Index_Security_Level_{Percentage}.csv")
-Recap.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_{Percentage}.csv")
+Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Count_{Percentage}.csv")
+Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Weight_{Percentage}.csv")
 GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\GMSR_Frame_{Percentage}.csv")
 
 # Delete .PNG from main folder
