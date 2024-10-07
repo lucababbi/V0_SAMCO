@@ -14,7 +14,7 @@ import numpy as np
 Starting_Date = date(2019, 3, 18)
 Upper_Limit = 1.15
 Lower_Limit = 0.50
-Percentage = 0.895
+Percentage = 0.85
 Left_Limit = Percentage - 0.05
 Right_Limit = Percentage +  0.05
 Threshold_NEW = 0.15
@@ -25,6 +25,7 @@ Screen_TOR = True
 # MSCI GMSR Mar_2019
 GMSR_Upper_Buffer = 0.85
 GMSR_Lower_Buffer = 0.87
+GMSR_Percentage = 0.85
 GMSR_MSCI = np.float64(6_203 * 1_000_000)
 
 # Index Creation Country Coverage Adjustment
@@ -233,7 +234,7 @@ def Equity_Minimum_Size(df: pl.DataFrame, Pivot_TOR, EMS_Frame, date, Segment: p
     try:
         IDX_Current = Dates_List.index(date.strftime("%Y-%m-%d"))
         Previous_Date = datetime.datetime.strptime(Dates_List[max(0, IDX_Current - 1)], "%Y-%m-%d").date()
-        previous_rank = EMS_Frame.filter((pl.col("Date") == Previous_Date) & (pl.col("Segment") == Segment)).select(pl.col("Rank")).to_numpy()[0][0]
+        previous_rank = EMS_Frame.filter((pl.col("Date") == Previous_Date)).select(pl.col("Rank")).to_numpy()[0][0]
     except:
         previous_rank = None
     final_df = pl.DataFrame()
@@ -569,12 +570,18 @@ def Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR):
 ##########Index Creation##########
 ##################################
 
-def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer):
+def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, writer):
 
     temp_Country = temp_Emerging_Aggregate.filter((pl.col("Date") == date) & (pl.col("Country") == country))
 
     # Sort in each Country the Companies by Full MCAP USD Cutoff
     temp_Country = temp_Country.sort("Full_MCAP_USD_Cutoff_Company", descending=True)
+
+    # Specific case CN
+    if country == "CN":
+        Percentage = 0.895
+        Left_Limit = Percentage - 0.05
+        Right_Limit = Percentage +  0.05
 
     # Calculate their CumWeight_Cutoff
     temp_Country = temp_Country.with_columns(
@@ -739,14 +746,20 @@ def Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country,
                 worksheet = writer.sheets[f'{date}_{country}']
                 worksheet.insert_image('O2', chart_file)
 
+    #Reset the Percentage in case of CN case
+    if country == "CN":
+        Percentage = 0.85
+        Left_Limit = Percentage - 0.05
+        Right_Limit = Percentage +  0.05
+
     return TopPercentage
 
 ##################################
 ########Index Rebalancing#########
 ##################################
 
-def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer):
-    temp_Country = temp_Emerging_Aggregate.filter((pl.col("Date") == date) & (pl.col("Country") == country))
+def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap,  Right_Limit, Left_Limit, writer):
+    temp_Country = Frame.filter((pl.col("Date") == date) & (pl.col("Country") == country))
 
     # Sort in each Country the Companies by Full MCAP USD Cutoff
     temp_Country = temp_Country.sort("Full_MCAP_USD_Cutoff_Company", descending=True)
@@ -768,6 +781,12 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
 
     # Check where X number of Companies lands us on the Curve
     TopPercentage = temp_Country.head(Company_Selection_Count)
+
+    # Specific case CN
+    if country == "CN":
+        Percentage = 0.895
+        Left_Limit = Percentage - 0.05
+        Right_Limit = Percentage +  0.05
 
     #################
     # Case Analysis #
@@ -1003,6 +1022,12 @@ def Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Sta
                         pl.lit("Deletion").alias("Size")
                     )
     
+    #Reset the Percentage in case of CN case
+    if country == "CN":
+        Percentage = 0.85
+        Left_Limit = Percentage - 0.05
+        Right_Limit = Percentage +  0.05
+
     return TopPercentage, temp_Country
 
 ##################################
@@ -1358,17 +1383,50 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                                             "Rank": [temp_Developed_Aggregate.filter(pl.col("Full_MCAP_USD_Cutoff_Company") <= GMSR_MSCI).head(1).select(pl.col("Rank")).to_numpy()[0][0]]
                 })
 
-            else:
+            elif temp_Developed_Aggregate.filter(pl.col("Full_MCAP_USD_Cutoff_Company") <= GMSR_MSCI).head(1).select(pl.col("CumWeight_Cutoff")).to_numpy()[0][0] > GMSR_Lower_Buffer:
                 New_Data = pl.DataFrame({
                                             "Date": [date],
-                                            "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
-                                            "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
-                                            "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
-                                            "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
-                                            "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
-                                            "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
-                                            "Rank": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Rank"].to_numpy()[0]]
+                                            "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
+                                            "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
+                                            "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
+                                            "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
+                                            "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
+                                            "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
+                                            "Rank": [
+                                                        temp_Developed_Aggregate
+                                                        .filter(pl.col("Full_MCAP_USD_Cutoff_Company") == 
+                                                            temp_Developed_Aggregate
+                                                            .filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer)
+                                                            .tail(1)["Full_MCAP_USD_Cutoff_Company"]
+                                                            .to_numpy()[0]
+                                                        )
+                                                        .head(1)["Rank"]
+                                                        .to_numpy()[0]
+                                                    ]
+
                 })
+
+            elif temp_Developed_Aggregate.filter(pl.col("Full_MCAP_USD_Cutoff_Company") <= GMSR_MSCI).head(1).select(pl.col("CumWeight_Cutoff")).to_numpy()[0][0] < GMSR_Upper_Buffer:
+                New_Data = pl.DataFrame({
+                                        "Date": [date],
+                                        "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
+                                        "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
+                                        "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
+                                        "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
+                                        "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
+                                        "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
+                                        "Rank": [
+                                                    temp_Developed_Aggregate
+                                                    .filter(pl.col("Full_MCAP_USD_Cutoff_Company") == 
+                                                        temp_Developed_Aggregate
+                                                        .filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer)
+                                                        .head(1)["Full_MCAP_USD_Cutoff_Company"]
+                                                        .to_numpy()[0]
+                                                    )
+                                                    .head(1)["Rank"]
+                                                    .to_numpy()[0]
+                                                ]
+            })
 
             # Drop the Rank column
             temp_Developed_Aggregate = temp_Developed_Aggregate.drop("Rank")
@@ -1388,7 +1446,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             # Emerging #
             for country in temp_Emerging_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
             
-                TopPercentage = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+                TopPercentage = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, writer)
 
                 # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
                 TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
@@ -1409,7 +1467,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             # Developed #
             for country in temp_Developed_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
             
-                TopPercentage = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+                TopPercentage = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, writer)
 
                 # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
                 TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
@@ -1542,17 +1600,51 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                                             "Rank": [temp_Developed_Aggregate.filter(pl.col("Full_MCAP_USD_Cutoff_Company") <= GMSR_MSCI).head(1).select(pl.col("Rank")).to_numpy()[0][0]]
                                         })
                 
-            else:
+            elif CumWeight_Cutoff_Rank > GMSR_Lower_Buffer:
                 New_Data = pl.DataFrame({
                                             "Date": [date],
-                                            "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
-                                            "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
-                                            "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
-                                            "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
-                                            "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
-                                            "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
-                                            "Rank": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") >= Percentage).head(1)["Rank"].to_numpy()[0]]
+                                            "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
+                                            "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
+                                            "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
+                                            "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
+                                            "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
+                                            "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
+                                            "Rank": [
+                                                        temp_Developed_Aggregate
+                                                        .filter(pl.col("Full_MCAP_USD_Cutoff_Company") == 
+                                                            temp_Developed_Aggregate
+                                                            .filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer)
+                                                            .tail(1)["Full_MCAP_USD_Cutoff_Company"]
+                                                            .to_numpy()[0]
+                                                        )
+                                                        .head(1)["Rank"]
+                                                        .to_numpy()[0]
+                                                    ]
+
                 })
+
+            elif CumWeight_Cutoff_Rank < GMSR_Upper_Buffer:
+                New_Data = pl.DataFrame({
+                                        "Date": [date],
+                                        "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
+                                        "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
+                                        "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
+                                        "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
+                                        "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
+                                        "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
+                                        "Rank": [
+                                                    temp_Developed_Aggregate
+                                                    .filter(pl.col("Full_MCAP_USD_Cutoff_Company") == 
+                                                        temp_Developed_Aggregate
+                                                        .filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer)
+                                                        .head(1)["Full_MCAP_USD_Cutoff_Company"]
+                                                        .to_numpy()[0]
+                                                    )
+                                                    .head(1)["Rank"]
+                                                    .to_numpy()[0]
+                                                ]
+            })
+                    
 
             # Drop the Rank column
             temp_Developed_Aggregate = temp_Developed_Aggregate.drop("Rank")
@@ -1575,7 +1667,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 # Check if there is already a previous Index creation for the current country
                 if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") < date))) > 0:
 
-                    TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+                    TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap,  Right_Limit, Left_Limit, writer)
 
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
                     TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
@@ -1603,7 +1695,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 
                 # If there is no composition, a new Index will be created
                 else:
-                    TopPercentage = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+                    TopPercentage = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, writer)
                     
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
                     TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
@@ -1638,7 +1730,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 # Check if there is already a previous Index creation for the current country
                 if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") < date))) > 0:
 
-                    TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Developed_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+                    TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Developed_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Right_Limit, Left_Limit, writer)
 
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
                     TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
@@ -1666,7 +1758,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 
                 # If there is no composition, a new Index will be created
                 else:
-                    TopPercentage = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, writer)
+                    TopPercentage = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, writer)
                     
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
                     TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR)
