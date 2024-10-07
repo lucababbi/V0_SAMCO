@@ -25,7 +25,7 @@ Screen_TOR = True
 Excel_Recap = True
 Excel_Recap_Rebalancing = True
 
-Country_Plotting = "PK"
+Country_Plotting = "KR"
 Output_File = rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\TopPercentage_Report_Rebalancing_{Country_Plotting}.xlsx"
 
 ##################################
@@ -1617,7 +1617,9 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
     # Add Recap_GMSR_Frame to Excel
     Stored_Securities.to_pandas().to_excel(writer, sheet_name="Historical_Screened_Securities", index=False)
     GMSR_Frame.to_pandas().to_excel(writer, sheet_name="GMSR_Historical", index=False)
-    
+
+### Small Index ###
+
 # Filter the Securities from Company Level
 Small_Index_Security_Level = Emerging.select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Capfactor", "ISIN", "SEDOL"])).join(Small_Index.filter(
     pl.col("Country").is_in(Emerging.select(pl.col("Country").unique()))
@@ -1643,23 +1645,42 @@ Small_Index_Security_Level = Small_Index_Security_Level.with_columns(
     (pl.col("Mcap_Units_Index_Currency") / pl.col("Mcap_Units_Index_Currency").sum().over("Date")).alias("Weight")
 )
 
+### Standard Index ###
+# Filter the Securities from Company Level
+Standard_Index_Security_Level = Emerging.select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Capfactor", "ISIN", "SEDOL"])).join(Standard_Index.filter(
+    pl.col("Country").is_in(Emerging.select(pl.col("Country").unique()))
+), on=["Date", "ENTITY_QID"], how="semi")
+
+# Add information of CapFactor/Mcap_Units_Index_Currency
+Standard_Index_Security_Level = Standard_Index_Security_Level.join(pl.read_parquet(
+    r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\STXWAGV_Review.parquet").with_columns(
+        pl.col("Date").cast(pl.Date)
+    ), on=["Date", "Internal_Number"], how="left")
+
+# Calculate the Weights for each Date
+Standard_Index_Security_Level = Standard_Index_Security_Level.with_columns(
+    (pl.col("Mcap_Units_Index_Currency") / pl.col("Mcap_Units_Index_Currency").sum().over("Date")).alias("Weight")
+)
+
 # Create a Recap
 Recap = (
     Small_Index_Security_Level
-    .group_by(["Country", "Date"])
-    .agg(pl.col("Weight").sum().alias("Sum_Weight"))
-    .sort("Date")  # Sort by Date to ensure columns are ordered from oldest to newest
+    .group_by(["Country", "Date"])  # Group by Country and Date
+    .agg(pl.col("Internal_Number").count().alias("Sum_Components"))  # Count "Count" column and alias it
+    .sort("Date")  # Ensure sorting by Date for proper column ordering in the pivot
     .pivot(
-        index="Country",
-        on="Date",
-        values="Sum_Weight"
+        index="Country",  # Set Country as the row index
+        on="Date",        # Create columns for each unique Date
+        values="Sum_Components"  # Fill in values with Sum_Components
     )
 )
 
 # Store the Results
-Small_Index_Security_Level.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level.csv")
-Recap.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap.csv")
-GMSR_Frame.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\GMSR_Frame.csv")
+
+Small_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level_{Percentage}.csv")
+Standard_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard_Index_Security_Level_{Percentage}.csv")
+Recap.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_{Percentage}.csv")
+GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\GMSR_Frame_{Percentage}.csv")
 
 # Delete .PNG from main folder
 Main_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO"
