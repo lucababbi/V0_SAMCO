@@ -1358,8 +1358,6 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                                             "Rank": [temp_Developed_Aggregate.filter(pl.col("Full_MCAP_USD_Cutoff_Company") <= GMSR_MSCI).head(1).select(pl.col("Rank")).to_numpy()[0][0]]
                 })
 
-                Percentage = temp_Developed_Aggregate.filter(pl.col("Full_MCAP_USD_Cutoff_Company") <= GMSR_MSCI).head(1).select(pl.col("CumWeight_Cutoff")).to_numpy()[0][0]
-
             else:
                 New_Data = pl.DataFrame({
                                             "Date": [date],
