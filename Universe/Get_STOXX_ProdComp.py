@@ -165,7 +165,7 @@ for index in idx:
         Output = Output.astype(str)
         Output = pl.from_pandas(Output)
 
-    Output = Output.select(pl.col(["Date", "Internal_Number", "Instrument_Name", "Mcap_Units_Index_Currency"]))
+    Output = Output.select(pl.col(["Date", "Internal_Number", "Capfactor"]))
 
-    Output.write_parquet(rf"C:\Users\et246\Desktop\V0_SAMCO\Universe\{index}_Review_Extended.parquet")
+    Output.write_parquet(rf"C:\Users\et246\Desktop\V0_SAMCO\Universe\{index}_Capfactor_Extended.parquet")
     Output = pd.DataFrame()
