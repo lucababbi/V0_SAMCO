@@ -148,11 +148,11 @@ idx = ["STXWAGV"]
 opclo = "close"
 
 # Create DataFrame with Review and Cutoff dates
-Review_Date = pd.read_csv(r"C:\Users\et246\Desktop\V0_SAMCO\Dates\Review_Date-QUARTERLY.csv", parse_dates=["Review", "Cutoff"], index_col=0)
+Review_Date = pd.read_csv(r"C:\Users\et246\Desktop\V0_SAMCO\Dates\Review_Date-QUARTERLY.csv", parse_dates=["Review", "Cutoff"])
 Output = pd.DataFrame()
 
 for index in idx:
-    for date in Review_Date["Cutoff"]:
+    for date in Review_Date["Review"]:
         date = pd.to_datetime(date)
         cons = get_prod_comp(index, dt.date(date.year, date.month, date.day), oc = opclo)
         cons["Date"] = date
@@ -165,7 +165,7 @@ for index in idx:
         Output = Output.astype(str)
         Output = pl.from_pandas(Output)
 
-    Output = Output.select(pl.col(["Date", "Internal_Number", "Mcap_Units_Index_Currency"]))
+    Output = Output.select(pl.col(["Date", "Internal_Number", "Instrument_Name", "Mcap_Units_Index_Currency"]))
 
-    Output.write_parquet(rf"C:\Users\et246\Desktop\V0_SAMCO\Universe\{index}_Cutoff.parquet")
+    Output.write_parquet(rf"C:\Users\et246\Desktop\V0_SAMCO\Universe\{index}_Review.parquet")
     Output = pd.DataFrame()
