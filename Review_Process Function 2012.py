@@ -780,21 +780,22 @@ def Index_Creation_Box(Frame: pl.DataFrame, Lower_GMSR, Upper_GMSR, country, dat
     Right_Limit = Percentage +  0.05
 
     # Check that minimum number is respected
-    # Check that minimum number is respected
     if Segment == "Developed":
-        if len(TopPercentage) < 5: TopPercentage = temp_Country.head(5)
-        TopPercentage = TopPercentage.with_columns(
-            pl.lit("Minimum Number of Companies").alias("Case"),
-            pl.lit("Reintroduction").alias("Size")
-        ).select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company",
-                        "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff", "Size", "Case"]))
+        if len(TopPercentage) < 5: 
+            TopPercentage = temp_Country.head(5)
+            TopPercentage = TopPercentage.with_columns(
+                pl.lit("Minimum Number of Companies").alias("Case"),
+                pl.lit("Reintroduction").alias("Size")
+            ).select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company",
+                            "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff", "Size", "Case"]))
     elif Segment == "Emerging":
-        if len(TopPercentage) < 3: TopPercentage = temp_Country.head(3)
-        TopPercentage = TopPercentage.with_columns(
-            pl.lit("Minimum Number of Companies").alias("Case"),
-            pl.lit("Reintroduction").alias("Size")
-        ).select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company",
-                        "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff", "Size", "Case"]))
+        if len(TopPercentage) < 3: 
+            TopPercentage = temp_Country.head(3)
+            TopPercentage = TopPercentage.with_columns(
+                pl.lit("Minimum Number of Companies").alias("Case"),
+                pl.lit("Reintroduction").alias("Size")
+            ).select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company",
+                            "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff", "Size", "Case"]))
 
     return TopPercentage
 
@@ -1062,19 +1063,21 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
     
     # Check that minimum number is respected
     if Segment == "Developed":
-        if len(TopPercentage) < 5: TopPercentage = temp_Country.head(5)
-        TopPercentage = TopPercentage.with_columns(
-            pl.lit("Minimum Number of Companies").alias("Case"),
-            pl.lit("Reintroduction").alias("Size")
-        ).select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company",
-                        "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff", "Size", "Case"]))
+        if len(TopPercentage) < 5: 
+            TopPercentage = temp_Country.head(5)
+            TopPercentage = TopPercentage.with_columns(
+                pl.lit("Minimum Number of Companies").alias("Case"),
+                pl.lit("Reintroduction").alias("Size")
+            ).select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company",
+                            "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff", "Size", "Case"]))
     elif Segment == "Emerging":
-        if len(TopPercentage) < 3: TopPercentage = temp_Country.head(3)
-        TopPercentage = TopPercentage.with_columns(
-            pl.lit("Minimum Number of Companies").alias("Case"),
-            pl.lit("Reintroduction").alias("Size")
-        ).select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company",
-                        "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff", "Size", "Case"]))
+        if len(TopPercentage) < 3: 
+            TopPercentage = temp_Country.head(3)
+            TopPercentage = TopPercentage.with_columns(
+                pl.lit("Minimum Number of Companies").alias("Case"),
+                pl.lit("Reintroduction").alias("Size")
+            ).select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company",
+                            "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff", "Size", "Case"]))
 
 
     return TopPercentage, temp_Country
