@@ -35,7 +35,7 @@ Coverage_Adjustment = True
 Excel_Recap = False
 Excel_Recap_Rebalancing = False
 
-Country_Plotting = "KR"
+Country_Plotting = "EG"
 Output_File = rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\TopPercentage_Report_Rebalancing_{Country_Plotting}.xlsx"
 
 ##################################
