@@ -9,10 +9,11 @@ CapFactor = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\
 ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).to_pandas()
 
 # Create the iStudio input
-Small_Index = pd.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level.csv", parse_dates=["Date"])
+# Small_Index = pd.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level.csv", parse_dates=["Date"])
+Standard_Index = pd.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard_Index_Security_Level_0.85.csv", parse_dates=["Date"]).query("Country == 'CN'")
 
 # Filter for needed columns
-Frame = Small_Index[["Internal_Number", "SEDOL", "ISIN", "Date"]]
+Frame = Standard_Index[["Internal_Number", "SEDOL", "ISIN", "Date"]]
 
 # Create weightFactor
 Frame["weightFactor"] = 1
@@ -34,7 +35,7 @@ current_datetime = datetime.today().strftime('%Y%m%d')
 Frame.to_csv(
         os.path.join(
             r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output", 
-            current_datetime + "_Small_Index_MSCI" +".csv"
+            current_datetime + "_CHINA_MSCI" +".csv"
         ), 
         index=False, 
         lineterminator="\n", 

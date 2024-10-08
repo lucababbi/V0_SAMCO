@@ -523,14 +523,20 @@ def Deletion_Rule(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Li
 
             # Iterate and check the condition, allowing for a minimum of 1 if the condition is met
             while Companies_To_Delete <= Maximum_Deletion:
-                if TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Lower_GMSR:
-                    # If CumWeight_Cutoff is still above or equal to Left_Limit, proceed
-                    TopPercentage = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
-                    break  # Break the loop once the condition is met
+                # Check to have at least 2 Companies
+                if len(TopPercentage.head(len(TopPercentage) - Companies_To_Delete)) > 1:
+                    if TopPercentage.head(len(TopPercentage) - Companies_To_Delete).tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Lower_GMSR:
+                        # If CumWeight_Cutoff is still above or equal to Left_Limit, proceed
+                        TopPercentage = TopPercentage.head(len(TopPercentage) - Companies_To_Delete)
+                        break  # Break the loop once the condition is met
 
+                    else:
+                        # Try to increase Companies_To_Delete by 1 (up to the rounded 20% cap)
+                        Companies_To_Delete += 1
                 else:
-                    # Try to increase Companies_To_Delete by 1 (up to the rounded 20% cap)
-                    Companies_To_Delete += 1
+                    # In case there is only one Company, we keep only it
+                    TopPercentage_Trimmed = TopPercentage.head(1)
+                    break
 
     else:
         TopPercentage = TopPercentage.with_columns(
@@ -608,9 +614,6 @@ def Index_Creation_Box(Frame: pl.DataFrame, Lower_GMSR, Upper_GMSR, country, dat
     except:
         Country_Percentage = 0.85
 
-    Left_Limit = Country_Percentage - 0.05
-    Right_Limit = Country_Percentage +  0.05
-
     # Calculate their CumWeight_Cutoff
     temp_Country = temp_Country.with_columns(
                     (pl.col("Free_Float_MCAP_USD_Cutoff_Company") / pl.col("Free_Float_MCAP_USD_Cutoff_Company").sum()).alias("Weight_Cutoff"),
@@ -629,155 +632,9 @@ def Index_Creation_Box(Frame: pl.DataFrame, Lower_GMSR, Upper_GMSR, country, dat
                     pl.col("CumWeight_Cutoff") < (Country_Percentage / Country_Adjustment)).vstack(temp_Country.select(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", 
                     "Free_Float_MCAP_USD_Cutoff_Company", "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff"]).filter(pl.col("CumWeight_Cutoff") >= (Country_Percentage / Country_Adjustment)).head(1))
     
-    #################
-    # Case Analysis #
-    #################
-
-    # Best case where we land inside the box # 
-    if (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Lower_GMSR) & (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] <= Upper_GMSR):
-
-        # Check how different is the CumWeight from Target Coverage
-        TopPercentage = TopPercentage.with_columns(
-                                    (abs(pl.col("CumWeight_Cutoff") - Country_Percentage)).alias("CumWeight_Cutoff_Difference")
-        )
-
-        # Check if CumWeight of the Company right across the Upper GMSR is > 90%
-        if TopPercentage.tail(1).select(pl.col("CumWeight_Cutoff")).to_numpy()[0][0] > Right_Limit:
-            next
-
-        # If CumWeight of the Company right across the Upper GMSR is <= 90%:
-        elif TopPercentage.tail(1).select(pl.col("CumWeight_Cutoff")).to_numpy()[0][0] <= Right_Limit:
-            # Filter by keeping only the closest CumWeight near to Country_Percentage
-            TopPercentage = TopPercentage.head(TopPercentage["CumWeight_Cutoff_Difference"].arg_min() + 1)
-
-        TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Standard").alias("Size")
-                            ).drop("CumWeight_Cutoff_Difference")
-        
-        TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Inside").alias("Case")
-        )
-
-        if Excel_Recap == True and country == Country_Plotting:
-
-            # Save DataFrame to Excel
-            TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-            # Create and save the chart
-            chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
-
-            # Insert the chart into the Excel file
-            workbook = writer.book
-            worksheet = writer.sheets[f'{date}_{country}']
-            worksheet.insert_image('O2', chart_file)
-
-    # Case where we land below the box
-    elif (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] < Lower_GMSR):
-        # Keep only Companies whose Full_MCAP_USD_Cutoff_Company is at least equal or higher than Lowe GMSR
+    # Check that the last Company is not below the Lower_GMSR
+    if TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] < Lower_GMSR:
         TopPercentage = TopPercentage.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR)
-
-        # In this case we do not care about the CumWeight_Cutoff
-        TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Standard").alias("Size")
-                            )
-        
-        TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Below").alias("Case")
-        )
-
-        if Excel_Recap == True and country == Country_Plotting:
-
-            # Save DataFrame to Excel
-            TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-            # Create and save the chart
-            chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
-
-            # Insert the chart into the Excel file
-            workbook = writer.book
-            worksheet = writer.sheets[f'{date}_{country}']
-            worksheet.insert_image('O2', chart_file)
-
-    # Case where we land above the box
-    elif (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] > Upper_GMSR):
-
-        # Check if there are still Companies in between the Upper and Lower GMSR
-        if len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff_Company") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR))) > 0:
-
-            TopPercentage_Extension = temp_Country.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= Upper_GMSR).sort("Full_MCAP_USD_Cutoff_Company",
-                descending=True).filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number")))).select(
-                    ["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company", "Full_MCAP_USD_Cutoff_Company", 
-                    "Weight_Cutoff", "CumWeight_Cutoff"]).vstack(temp_Country.filter(pl.col("Full_MCAP_USD_Cutoff_Company") < Upper_GMSR).sort("Full_MCAP_USD_Cutoff_Company",
-                descending=True).filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number")))).select(
-                    ["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company",
-                    "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff"]).head(1)
-                    )
-
-            TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Standard").alias("Size")
-                            )
-            
-            TopPercentage_Extension = TopPercentage_Extension.with_columns(
-                                    pl.lit("Standard").alias("Size")
-                            )
-            
-            # Merge the initial Frame with the additions
-            TopPercentage = TopPercentage.vstack(TopPercentage_Extension)
-
-            TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Above - Companies in between Upper and Lower GMSR").alias("Case")
-                    )
-
-            if Excel_Recap == True and country == Country_Plotting:
-
-                # Save DataFrame to Excel
-                TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-                # Create and save the chart
-                chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
-
-                # Insert the chart into the Excel file
-                workbook = writer.book
-                worksheet = writer.sheets[f'{date}_{country}']
-                worksheet.insert_image('O2', chart_file)
-
-        # Case where we do not have any company in between the Upper and Lower GMSR
-        elif len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff_Company") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR))) == 0:
-            # Try to get as close as possible to Upper GMSR
-            TopPercentage_Extension = temp_Country.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR).sort("Full_MCAP_USD_Cutoff_Company", descending=True,
-                                        ).filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number")))).select(
-                                        ["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company", 
-                                        "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff"])
-            
-            TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Standard").alias("Size")
-                            )
-            
-            TopPercentage_Extension = TopPercentage_Extension.with_columns(
-                                    pl.lit("Standard").alias("Size")
-                            )
-            
-            # Merge the initial Frame with the additions
-            TopPercentage = TopPercentage.vstack(TopPercentage_Extension)
-
-            
-            TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case")
-                    )
-            
-            if Excel_Recap == True and country == Country_Plotting:
-
-                # Save DataFrame to Excel
-                TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-                # Create and save the chart
-                chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
-
-                # Insert the chart into the Excel file
-                workbook = writer.book
-                worksheet = writer.sheets[f'{date}_{country}']
-                worksheet.insert_image('O2', chart_file)
-
-    #Reset the Percentage
-    Percentage = 0.85
-    Left_Limit = Percentage - 0.05
-    Right_Limit = Percentage +  0.05
 
     # Check that minimum number is respected
     if Segment == "Developed":
@@ -796,6 +653,12 @@ def Index_Creation_Box(Frame: pl.DataFrame, Lower_GMSR, Upper_GMSR, country, dat
                 pl.lit("Reintroduction").alias("Size")
             ).select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff_Company",
                             "Full_MCAP_USD_Cutoff_Company", "Weight_Cutoff", "CumWeight_Cutoff", "Size", "Case"]))
+            
+    # Add Case/Size
+    TopPercentage = TopPercentage.with_columns(
+                    pl.lit("Standard").alias("Size"),
+                    pl.lit("Index Creation").alias("Case")
+    )
 
     return TopPercentage
 
@@ -826,6 +689,14 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
 
     # Check where X number of Companies lands us on the Curve
     TopPercentage = temp_Country.head(Company_Selection_Count)
+
+    # Adjust the Left & Right Limit based on each Country
+    if Coverage_Adjustment == True:
+        Country_Adjustment = Country_Coverage.filter(pl.col("Country") == country).select(pl.col("Coverage")).to_numpy()[0][0]
+        Left_Limit = Country_Adjustment - 0.05
+        Right_Limit = Country_Adjustment + 0.05
+    else:
+        Country_Adjustment = 1
 
     #################
     # Case Analysis #
@@ -1697,7 +1568,6 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                                                 ]
             })
                     
-
             # Drop the Rank column
             temp_Developed_Aggregate = temp_Developed_Aggregate.drop("Rank")
 
@@ -1866,7 +1736,8 @@ Small_Index_Security_Level = Emerging.select(pl.col(["Date", "ENTITY_QID", "Coun
 # Add information of CapFactor/Mcap_Units_Index_Currency
 Small_Index_Security_Level = Small_Index_Security_Level.join(pl.read_parquet(
     r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\STXWAGV_Review.parquet").with_columns(
-        pl.col("Date").cast(pl.Date)
+        pl.col("Date").cast(pl.Date),
+        pl.col("Mcap_Units_Index_Currency").cast(pl.Float64)
     ), on=["Date", "Internal_Number"], how="left")
 
 # Remove China A / CCS
@@ -1892,7 +1763,8 @@ Standard_Index_Security_Level = Emerging.select(pl.col(["Date", "ENTITY_QID", "C
 # Add information of CapFactor/Mcap_Units_Index_Currency
 Standard_Index_Security_Level = Standard_Index_Security_Level.join(pl.read_parquet(
     r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\STXWAGV_Review.parquet").with_columns(
-        pl.col("Date").cast(pl.Date)
+        pl.col("Date").cast(pl.Date),
+        pl.col("Mcap_Units_Index_Currency").cast(pl.Float64)
     ), on=["Date", "Internal_Number"], how="left")
 
 # Calculate the Weights for each Date
@@ -1925,11 +1797,38 @@ Recap_Weight = (
     )
 )
 
+# Recap Standard Index
+Recap_Count_Standard = (
+    Standard_Index_Security_Level
+    .group_by(["Country", "Date"])  # Group by Country and Date
+    .agg(pl.col("Internal_Number").count().alias("Sum_Components"))  # Count "Count" column and alias it
+    .sort("Date")  # Ensure sorting by Date for proper column ordering in the pivot
+    .pivot(
+        index="Country",  # Set Country as the row index
+        on="Date",        # Create columns for each unique Date
+        values="Sum_Components"  # Fill in values with Sum_Components
+    )
+)
+
+Recap_Weight_Standard = (
+    Standard_Index_Security_Level
+    .group_by(["Country", "Date"])  # Group by Country and Date
+    .agg(pl.col("Weight").sum().alias("Weight_Components"))  # Count "Count" column and alias it
+    .sort("Date")  # Ensure sorting by Date for proper column ordering in the pivot
+    .pivot(
+        index="Country",  # Set Country as the row index
+        on="Date",        # Create columns for each unique Date
+        values="Weight_Components"  # Fill in values with Sum_Components
+    )
+)
+
 # Store the Results
 Small_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level_{Percentage}.csv")
 Standard_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard_Index_Security_Level_{Percentage}.csv")
 Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Count_{Percentage}.csv")
 Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Weight_{Percentage}.csv")
+Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Count_Standard_{Percentage}.csv")
+Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Weight_Standard_{Percentage}.csv")
 GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\GMSR_Frame_{Percentage}.csv")
 
 # Delete .PNG from main folder
