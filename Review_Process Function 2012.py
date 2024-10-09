@@ -167,14 +167,14 @@ def China_A_Securities(Frame: pl.DataFrame) -> pl.DataFrame:
                                         pl.col("Instrument_Name").str.contains("(CCS)")
                                     ))
                             ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).with_columns(
-                                        (pl.col("Capfactor") / 2).alias("Capfactor_CN")
+                                        (pl.col("Capfactor") / 0.2).alias("Capfactor_CN")
                                     )
         else:
             Chinese_Securities = temp_Frame.filter(
                                         (pl.col("Exchange") != 'Stock Exchange of Hong Kong - SSE Securities') &
                                         (pl.col("Exchange") != 'Stock Exchange of Hong Kong - SZSE Securities')
                                     ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).with_columns(
-                                        (pl.col("Capfactor") / 2).alias("Capfactor_CN")
+                                        (pl.col("Capfactor") / 0.2).alias("Capfactor_CN")
                                     )
         
         Results = Results.vstack(Chinese_Securities)
@@ -673,7 +673,16 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
     temp_Country = temp_Country.sort("Full_MCAP_USD_Cutoff_Company", descending=True)
 
     # Check for Companies that are still alive
-    temp_Country = temp_Country.filter(pl.col("Internal_Number").is_in(SW_ACALLCAP.filter(pl.col("Review") == date).select(pl.col("Internal_Number")).to_series()))
+    temp_Country = temp_Country.filter(
+        pl.col("Internal_Number").is_in(
+            Securities_Cutoff.filter(
+                (pl.col("Review") == date) &
+                (pl.col("currency").is_not_null()) &
+                (pl.col("closePrice").is_not_null()) &
+                (pl.col("shares").is_not_null())
+            ).select(pl.col("stoxxId")).to_series()
+        )
+    )
 
     # Calculate their CumWeight_Cutoff
     temp_Country = temp_Country.with_columns(
@@ -692,7 +701,7 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
 
     # Adjust the Left & Right Limit based on each Country
     if Coverage_Adjustment == True:
-        Country_Adjustment = Country_Coverage.filter(pl.col("Country") == country).select(pl.col("Coverage")).to_numpy()[0][0]
+        Country_Adjustment =  Percentage / Country_Coverage.filter(pl.col("Country") == country).select(pl.col("Coverage")).to_numpy()[0][0]
         Left_Limit = Country_Adjustment - 0.05
         Right_Limit = Country_Adjustment + 0.05
     else:

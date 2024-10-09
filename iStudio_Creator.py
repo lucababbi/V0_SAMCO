@@ -4,8 +4,8 @@ from datetime import datetime
 import os
 
 # Capfactor from SWACALLCAP
-CapFactor = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Capfactor_SWACALLCAP.csv").with_columns(
-    pl.col("Date").cast(pl.Date)
+CapFactor = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Capfactor_SWACALLCAP.parquet").with_columns(
+    pl.col("Date").cast(pl.Date),
 ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).to_pandas()
 
 # Create the iStudio input
