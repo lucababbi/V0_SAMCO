@@ -158,7 +158,19 @@ def China_A_Securities(Frame: pl.DataFrame) -> pl.DataFrame:
         # Filter for the given date
         temp_Frame = Frame.filter(pl.col("Date") == Date)
 
-        if Date <= datetime.date(2022,3,21):
+        if  datetime.date(2019,3,18) <= Date < datetime.date(2019,9,23):
+            Chinese_Securities = temp_Frame.filter(
+                                (
+                                    (pl.col("Country") == "CN") &
+                                    (
+                                        pl.col("Instrument_Name").str.contains("'A'") |
+                                        pl.col("Instrument_Name").str.contains("(CCS)")
+                                    ))
+                            ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).with_columns(
+                                        (pl.col("Capfactor") / 0.1).alias("Capfactor_CN")
+                                    )
+
+        elif Date <= datetime.date(2022,3,21):
             Chinese_Securities = temp_Frame.filter(
                                 (
                                     (pl.col("Country") == "CN") &
@@ -549,50 +561,57 @@ def Deletion_Rule(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Li
 ##Minimum FreeFloatCountry Level##
 ##################################
 
-def Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR):
+def Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date):
     # Check if last Company Full_MCAP_USD_Cutoff_Company is in between Upper and Lower GMSR
 
-    # Case inside the box
-    if (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] <= Upper_GMSR) & (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Lower_GMSR):
-    
-        # Country_GMSR is the Full_MCAP_USD_Cutoff_Company / 2
-        Country_GMSR = TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] / 2
+    # No Buffer for the Starting Date
+    if date == Starting_Date:
 
-        # Check which Companies are below the Country_GMSR
-        TopPercentage = TopPercentage.with_columns(
-            pl.when(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_GMSR)
-            .then(True)
-            .otherwise(None)
-            .alias("Shadow_Company")
-        )
+        # Case inside the box
+        if (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] <= Upper_GMSR) & (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Lower_GMSR):
+        
+            # Country_GMSR is the Full_MCAP_USD_Cutoff_Company / 2
+            Country_GMSR = TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] / 2
 
-    # Case above the box
-    elif (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] > Upper_GMSR):
+            # Check which Companies are below the Country_GMSR
+            TopPercentage = TopPercentage.with_columns(
+                pl.when(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_GMSR)
+                .then(True)
+                .otherwise(None)
+                .alias("Shadow_Company")
+            )
 
-        # Country_GMSR is the Upper_GMSR / 2
-        Country_GMSR = Upper_GMSR / 2
+        # Case above the box
+        elif (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] > Upper_GMSR):
 
-        # Check which Companies are below the Country_GMSR
-        TopPercentage = TopPercentage.with_columns(
-            pl.when(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_GMSR)
-            .then(True)
-            .otherwise(None)
-            .alias("Shadow_Company")
-        )
+            # Country_GMSR is the Upper_GMSR / 2
+            Country_GMSR = Upper_GMSR / 2
 
-    # Case below the box
-    else:
+            # Check which Companies are below the Country_GMSR
+            TopPercentage = TopPercentage.with_columns(
+                pl.when(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_GMSR)
+                .then(True)
+                .otherwise(None)
+                .alias("Shadow_Company")
+            )
 
-        # Country_GMSR is the GMSR / 2
-        Country_GMSR = GMSR_Frame.filter(pl.col("Date") == date).select(pl.col("GMSR_Emerging")).to_numpy()[0][0] / 2
+        # Case below the box
+        else:
 
-        # Check which Companies are below the Country_GMSR
-        TopPercentage = TopPercentage.with_columns(
-            pl.when(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_GMSR)
-            .then(True)
-            .otherwise(None)
-            .alias("Shadow_Company")
-        )
+            # Country_GMSR is the GMSR / 2
+            Country_GMSR = GMSR_Frame.filter(pl.col("Date") == date).select(pl.col("GMSR_Emerging")).to_numpy()[0][0] / 2
+
+            # Check which Companies are below the Country_GMSR
+            TopPercentage = TopPercentage.with_columns(
+                pl.when(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_GMSR)
+                .then(True)
+                .otherwise(None)
+                .alias("Shadow_Company")
+            )
+
+    else: # Buffer for Companies
+
+        Dates_List = Pivot_TOR
 
     # Return the Frame
     return TopPercentage
