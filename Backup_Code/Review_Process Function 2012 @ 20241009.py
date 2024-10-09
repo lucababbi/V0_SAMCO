@@ -609,53 +609,12 @@ def Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date, count
                 .alias("Shadow_Company")
             )
 
-    else: 
-        # Buffer for Companies
-
+    else: # Buffer for Companies
+        
         # Create the list of Dates
         Dates_List = Pivot_TOR.index.to_list()
         Previous_Date = datetime.datetime.strptime(Dates_List[max(0, IDX_Current - 1)], "%Y-%m-%d").date()
-
-        # Get Current Constituents (Security Level) with Information as of Cutoff updated
-        QID_Standard_Index = Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") == Previous_Date)).select(pl.col("ENTITY_QID", "Shadow_Company", "Internal_Number"))
-        QID_Small_Index = Small_Index.filter((pl.col("Country") == country) & (pl.col("Date") == Previous_Date)).select(pl.col("ENTITY_QID", "Shadow_Company", "Internal_Number"))
-
-        # Add newest Cutoff Information eventually removing NULL Market Cap
-        # Standard #
-        Security_Standard_Index_Current = QID_Standard_Index.join(temp_Emerging.filter((pl.col("Date")==date) & (pl.col("Country") == country)),
-            on=["Internal_Number"], how="left").select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number",
-            "Instrument_Name", "Free_Float", "Capfactor", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff", 
-            "Shadow_Company"])).filter(pl.col("Full_MCAP_USD_Cutoff") > 0)
-        
-        Company_Standard_Index_Current = Security_Standard_Index_Current.group_by(
-                                                    ["Date", "ENTITY_QID"]).agg([
-                                                        pl.col("Country").first().alias("Country"),
-                                                        pl.col("Shadow_Company").first().alias("Shadow_Company"),
-                                                        pl.col("Internal_Number").first().alias("Internal_Number"),
-                                                        pl.col("Instrument_Name").first().alias("Instrument_Name"),
-                                                        pl.col("Free_Float_MCAP_USD_Cutoff").sum().alias("Free_Float_MCAP_USD_Cutoff_Company"),
-                                                        pl.col("Full_MCAP_USD_Cutoff").sum().alias("Full_MCAP_USD_Cutoff_Company")
-                                                    ]).sort(["Date", "Full_MCAP_USD_Cutoff_Company"], descending = True)
-
-        # Small #
-        Security_Small_Index_Current = QID_Small_Index.join(temp_Emerging.filter((pl.col("Date")==date) & (pl.col("Country") == country)),
-            on=["Internal_Number"], how="left").select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number",
-            "Instrument_Name", "Free_Float", "Capfactor", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff", 
-            "Shadow_Company"])).filter(pl.col("Full_MCAP_USD_Cutoff") > 0)
-        
-        Company_Small_Index_Current = Security_Small_Index_Current.group_by(
-                                                    ["Date", "ENTITY_QID"]).agg([
-                                                        pl.col("Country").first().alias("Country"),
-                                                        pl.col("Shadow_Company").first().alias("Shadow_Company"),
-                                                        pl.col("Internal_Number").first().alias("Internal_Number"),
-                                                        pl.col("Instrument_Name").first().alias("Instrument_Name"),
-                                                        pl.col("Free_Float_MCAP_USD_Cutoff").sum().alias("Free_Float_MCAP_USD_Cutoff_Company"),
-                                                        pl.col("Full_MCAP_USD_Cutoff").sum().alias("Full_MCAP_USD_Cutoff_Company")
-                                                    ]).sort(["Date", "Full_MCAP_USD_Cutoff_Company"], descending = True)
-
-        #################
-        # Case Analysis #
-        #################
+        Previous_Composition = Output_Standard_Index.filter((pl.col("Date") == Previous_Date) & (pl.col("Country") == country))
 
         # Case inside the box
         if (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] <= Upper_GMSR) & (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Lower_GMSR):
@@ -666,15 +625,15 @@ def Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date, count
 
             # Check which Companies were in the Previous Composition and which ones were Shadow
             TopPercentage = TopPercentage.join(
-                    Company_Standard_Index_Current.select(["Internal_Number", "Shadow_Company"]), 
+                    Previous_Composition.select(["Internal_Number", "Shadow_Company"]), 
                     on="Internal_Number", 
                     how="left"
                 ).with_columns(
                 pl.col("Internal_Number")
-                .is_in(Company_Standard_Index_Current.select("Internal_Number").to_series())
+                .is_in(Previous_Composition.select("Internal_Number").to_series())
                 .alias("In_Previous"),
                 pl.when(
-                        (pl.col("Internal_Number").is_in(Company_Standard_Index_Current.select("Internal_Number").to_series())) &
+                        (pl.col("Internal_Number").is_in(Previous_Composition.select("Internal_Number").to_series())) &
                         (pl.col("Shadow_Company") == True)
                     )
                     .then(True)
@@ -699,15 +658,15 @@ def Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date, count
 
             # Check which Companies were in the Previous Composition
             TopPercentage = TopPercentage.join(
-                    Company_Standard_Index_Current.select(["Internal_Number", "Shadow_Company"]), 
+                    Previous_Composition.select(["Internal_Number", "Shadow_Company"]), 
                     on="Internal_Number", 
                     how="left"
                 ).with_columns(
                 pl.col("Internal_Number")
-                .is_in(Company_Standard_Index_Current.select("Internal_Number").to_series())
+                .is_in(Previous_Composition.select("Internal_Number").to_series())
                 .alias("In_Previous"),
                 pl.when(
-                        (pl.col("Internal_Number").is_in(Company_Standard_Index_Current.select("Internal_Number").to_series())) &
+                        (pl.col("Internal_Number").is_in(Previous_Composition.select("Internal_Number").to_series())) &
                         (pl.col("Shadow_Company") == True)
                     )
                     .then(True)
@@ -732,15 +691,15 @@ def Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date, count
 
             # Check which Companies were in the Previous Composition
             TopPercentage = TopPercentage.join(
-                    Company_Standard_Index_Current.select(["Internal_Number", "Shadow_Company"]), 
+                    Previous_Composition.select(["Internal_Number", "Shadow_Company"]), 
                     on="Internal_Number", 
                     how="left"
                 ).with_columns(
                 pl.col("Internal_Number")
-                .is_in(Company_Standard_Index_Current.select("Internal_Number").to_series())
+                .is_in(Previous_Composition.select("Internal_Number").to_series())
                 .alias("In_Previous"),
                 pl.when(
-                        (pl.col("Internal_Number").is_in(Company_Standard_Index_Current.select("Internal_Number").to_series())) &
+                        (pl.col("Internal_Number").is_in(Previous_Composition.select("Internal_Number").to_series())) &
                         (pl.col("Shadow_Company") == True)
                     )
                     .then(True)
