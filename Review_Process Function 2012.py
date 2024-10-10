@@ -547,11 +547,68 @@ def Deletion_Rule(TopPercentage, temp_Country, Left_Limit, Right_Limit, Lower_Li
         )
 
     return TopPercentage
+
+##################################
+###########Chairs Rule############
+##################################
+def Fill_Chairs(temp_Country, Companies_To_Fill, Country_Cutoff, Country_Cutoff_Upper, Country_Cutoff_Lower):
+
+    # First priority: Check if priority 1 is enough to fill the chairs
+    priority1 = temp_Country.filter(
+        (pl.col("Full_MCAP_USD_Cutoff_Company") >= Country_Cutoff) & 
+        ((pl.col("Size") == "STANDARD") | (pl.col("Size") == "NEW"))
+    )
     
+    if len(priority1) == Companies_To_Fill:
+        return priority1.with_columns(
+            pl.col("Shadow_Company").fill_null(True)
+        )
+
+    # Second priority: Add priority 2 to priority 1
+    priority2 = temp_Country.filter(
+        (pl.col("Full_MCAP_USD_Cutoff_Company") >= Country_Cutoff_Upper) & 
+        ((pl.col("Size") == "SMALL"))
+    )
+    
+    if len(priority1) + len(priority2) >= Companies_To_Fill:
+        TopPercentage = priority1.vstack(priority2)
+        return TopPercentage.head(Companies_To_Fill).with_columns(
+            pl.col("Shadow_Company").fill_null(True)
+        )
+
+    # Third priority: Add priority 3 to priority 1 and 2
+    priority3 = temp_Country.filter(
+    ((pl.col("Full_MCAP_USD_Cutoff_Company") >= Country_Cutoff_Lower) & 
+     (pl.col("Full_MCAP_USD_Cutoff_Company") < Country_Cutoff)) &
+    ((pl.col("Size") == "STANDARD") | (pl.col("Size") == "NEW"))
+    )
+    
+    if len(priority1) + len(priority2) + len(priority3) >= Companies_To_Fill:
+        TopPercentage = priority1.vstack(priority2).vstack(priority3)
+        return TopPercentage.head(Companies_To_Fill).with_columns(
+            pl.col("Shadow_Company").fill_null(True)
+        )
+
+    # Fourth priority: Add priority 4 to priority 1, 2, and 3
+    priority4 = temp_Country.filter(
+        ((pl.col("Full_MCAP_USD_Cutoff_Company") >= Country_Cutoff) & ((pl.col("Full_MCAP_USD_Cutoff_Company") < Country_Cutoff_Upper)))
+        ((pl.col("Size") == "SMALL"))
+    )
+    
+    if len(priority1) + len(priority2) + len(priority3) + len(priority4) >= Companies_To_Fill:
+        TopPercentage = priority1.vstack(priority2).vstack(priority3).vstack(priority4)
+        return TopPercentage.head(Companies_To_Fill).with_columns(
+            pl.col("Shadow_Company").fill_null(True)
+        )
+
+    # Edge case: Not enough companies to fill the chairs
+    print("Not enough Companies")
+    return None
+
 ##################################
 ##Minimum FreeFloatCountry Level##
 ##################################
-def Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date, country, Segment: pl.Utf8):
+def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, Segment: pl.Utf8):
     # Check if last Company Full_MCAP_USD_Cutoff_Company is in between Upper and Lower GMSR
 
     # No Buffer for the Starting Date
@@ -654,14 +711,14 @@ def Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date, count
                                                         pl.col("Shadow_Company").fill_null(False)
                                                     )
         
-        # Add to the Current Investable Companies the latest Full_MCAP_USD_Cutoff_Company
-        if Segment == "Emerging":
-            Company_Standard_Index_Current =  Company_Standard_Index_Current.join(Original_MCAP_Emerging, on=["ENTITY_QID"], how="left")
-            Company_Small_Index_Current = Company_Small_Index_Current.join(Original_MCAP_Emerging, on=["ENTITY_QID"], how="left")
-        else:
-            Company_Standard_Index_Current =  Company_Standard_Index_Current.join(Original_MCAP_Developed, on=["ENTITY_QID"], how="left")
-            Company_Small_Index_Current = Company_Small_Index_Current.join(Original_MCAP_Developed, on=["ENTITY_QID"], how="left")
+        # Create the Current Standard + Index
+        Current_Index = Company_Standard_Index_Current.vstack(Company_Small_Index_Current)
 
+        # Add information of Standard/Small Companies to Refreshed Universe
+        temp_Country = temp_Country.join(Current_Index.select(pl.col(["ENTITY_QID", "Shadow_Company", "Size"])), on=["ENTITY_QID"], how="left").with_columns(
+            pl.col("Size").fill_null("NEW")
+        )
+        
         #################
         # Case Analysis #
         #################
@@ -671,98 +728,54 @@ def Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date, count
         
             # Country_GMSR is the Full_MCAP_USD_Cutoff_Company / 2
             Country_Cutoff = TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0]
-            Country_GMSR_NEW = TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] / 2
-            Country_GMSR_OLD = TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] / 2 * (2/3)
+            Country_Cutoff_Upper = Country_Cutoff * 1.5
+            Country_Cutoff_Lower = Country_Cutoff * (2/3)
 
-            # Check which Companies were in the Previous Composition and which ones were Shadow
-            TopPercentage = TopPercentage.join(
-                    Company_Standard_Index_Current.select(["Internal_Number", "Shadow_Company"]), 
-                    on="Internal_Number", 
-                    how="left"
-                ).with_columns(
-                pl.col("Internal_Number")
-                .is_in(Company_Standard_Index_Current.select("Internal_Number").to_series())
-                .alias("In_Previous"),
-                pl.when(
-                        (pl.col("Internal_Number").is_in(Company_Standard_Index_Current.select("Internal_Number").to_series())) &
-                        (pl.col("Shadow_Company") == True)
-                    )
-                    .then(True)
-                    .otherwise(False)
-                    .alias("Previously_Shadow")
-                ).drop("Shadow_Company")
+            TopPercentage = Fill_Chairs(temp_Country, Companies_To_Fill, Country_Cutoff, Country_Cutoff_Upper, Country_Cutoff_Lower)
 
-            # Check how many Companies are above the Country_Cutoff based on NEW-CURRENT position
-            TopPercentage = TopPercentage.filter(pl.col("Full_MCAP_USD_Cutoff_Company"))
+            # Update Shadow_Company
+            TopPercentage = TopPercentage.with_columns(
+                pl.when(pl.col("Shadow_Company") == False)  # Condition: Shadow_Company is False
+                .then(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < (Country_Cutoff * 0.5 * (2 / 3)))  # Condition for False case
+                .otherwise(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < (Country_Cutoff * 0.5))  # Condition for True case
+                .alias("Update_Shadow_Company")  # Name of the new column
+            ).drop("Shadow_Company").rename({"Update_Shadow_Company": "Shadow_Company"})
 
         # Case above the box
         elif (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] > Upper_GMSR):
 
             # Country_GMSR is the Upper_GMSR / 2
-            Country_GMSR_NEW = Upper_GMSR / 2
-            Country_GMSR_OLD = Upper_GMSR / 2 * (2/3)
+            Country_Cutoff = Upper_GMSR / 2
+            Country_Cutoff_Upper = Country_Cutoff * 1.5
+            Country_Cutoff_Lower = Country_Cutoff * (2/3)
 
-            # Check which Companies were in the Previous Composition
-            TopPercentage = TopPercentage.join(
-                    Company_Standard_Index_Current.select(["Internal_Number", "Shadow_Company"]), 
-                    on="Internal_Number", 
-                    how="left"
-                ).with_columns(
-                pl.col("Internal_Number")
-                .is_in(Company_Standard_Index_Current.select("Internal_Number").to_series())
-                .alias("In_Previous"),
-                pl.when(
-                        (pl.col("Internal_Number").is_in(Company_Standard_Index_Current.select("Internal_Number").to_series())) &
-                        (pl.col("Shadow_Company") == True)
-                    )
-                    .then(True)
-                    .otherwise(False)
-                    .alias("Previously_Shadow")
-                ).drop("Shadow_Company")
+            TopPercentage = Fill_Chairs(temp_Country, Companies_To_Fill, Country_Cutoff, Country_Cutoff_Upper, Country_Cutoff_Lower)
 
-            # Check which Companies are below the Country_GMSR
+            # Update Shadow_Company
             TopPercentage = TopPercentage.with_columns(
-                pl.when((pl.col("In_Previous") == True) & (pl.col("Previously_Shadow") == False))
-                .then(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_GMSR_OLD)
-                .otherwise(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_GMSR_NEW)
-                .alias("Shadow_Company")
-            )
+                pl.when(pl.col("Shadow_Company") == False)  # Condition: Shadow_Company is False
+                .then(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < (Country_Cutoff * 0.5 * (2 / 3)))  # Condition for False case
+                .otherwise(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < (Country_Cutoff * 0.5))  # Condition for True case
+                .alias("Update_Shadow_Company")  # Name of the new column
+            ).drop("Shadow_Company").rename({"Update_Shadow_Company": "Shadow_Company"})
 
         # Case below the box
         else:
 
             # Country_GMSR is the GMSR / 2
-            Country_GMSR_NEW = GMSR_Frame.filter(pl.col("Date") == date).select(pl.col("GMSR_Emerging")).to_numpy()[0][0] / 2
-            Country_GMSR_OLD = GMSR_Frame.filter(pl.col("Date") == date).select(pl.col("GMSR_Emerging")).to_numpy()[0][0] / 2 * (2/3)
+            Country_Cutoff = Lower_GMSR / 2
+            Country_Cutoff_Upper = Country_Cutoff * 1.5
+            Country_Cutoff_Lower = Country_Cutoff * (2/3)
 
-            # Check which Companies were in the Previous Composition
-            TopPercentage = TopPercentage.join(
-                    Company_Standard_Index_Current.select(["Internal_Number", "Shadow_Company"]), 
-                    on="Internal_Number", 
-                    how="left"
-                ).with_columns(
-                pl.col("Internal_Number")
-                .is_in(Company_Standard_Index_Current.select("Internal_Number").to_series())
-                .alias("In_Previous"),
-                pl.when(
-                        (pl.col("Internal_Number").is_in(Company_Standard_Index_Current.select("Internal_Number").to_series())) &
-                        (pl.col("Shadow_Company") == True)
-                    )
-                    .then(True)
-                    .otherwise(False)
-                    .alias("Previously_Shadow")
-                ).drop("Shadow_Company")
+            TopPercentage = Fill_Chairs(temp_Country, Companies_To_Fill, Country_Cutoff, Country_Cutoff_Upper, Country_Cutoff_Lower)
 
-            # Check which Companies are below the Country_GMSR
+            # Update Shadow_Company
             TopPercentage = TopPercentage.with_columns(
-                pl.when((pl.col("In_Previous") == True) & (pl.col("Previously_Shadow") == False))
-                .then(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_GMSR_OLD)
-                .otherwise(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_GMSR_NEW)
-                .alias("Shadow_Company")
-            )
-        
-        # Drop unnecessary columns
-        TopPercentage = TopPercentage.drop("Previously_Shadow", "In_Previous")
+                pl.when(pl.col("Shadow_Company") == False)  # Condition: Shadow_Company is False
+                .then(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < (Country_Cutoff * 0.5 * (2 / 3)))  # Condition for False case
+                .otherwise(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < (Country_Cutoff * 0.5))  # Condition for True case
+                .alias("Update_Shadow_Company")  # Name of the new column
+            ).drop("Shadow_Company").rename({"Update_Shadow_Company": "Shadow_Company"})
 
     # Return the Frame
     return TopPercentage
@@ -829,7 +842,7 @@ def Index_Creation_Box(Frame: pl.DataFrame, Lower_GMSR, Upper_GMSR, country, dat
                     pl.lit("Index Creation").alias("Case")
     )
 
-    return TopPercentage
+    return TopPercentage, temp_Country
 
 ##################################
 ########Index Rebalancing#########
@@ -1557,10 +1570,10 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             # Emerging #
             for country in temp_Emerging_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
             
-                TopPercentage = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Emerging", writer)
+                TopPercentage, temp_Country = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Emerging", writer)
 
                 # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
+                TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
 
                 # Stack to Output_Standard_Index
                 Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage)
@@ -1578,10 +1591,10 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             # Developed #
             for country in temp_Developed_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
             
-                TopPercentage = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Developed", writer)
+                TopPercentage, temp_Country = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Developed", writer)
 
                 # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date, country, "Developed")
+                TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Developed")
 
                 # Stack to Output_Standard_Index
                 Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage)
@@ -1812,7 +1825,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                     TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap,  Right_Limit, Left_Limit, "Emerging" ,writer)
 
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
+                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
 
                     if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
@@ -1837,10 +1850,10 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 
                 # If there is no composition, a new Index will be created
                 else:
-                    TopPercentage = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Emerging", writer)
+                    TopPercentage, temp_Country = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Emerging", writer)
                     
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
+                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
 
                     if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
@@ -1875,7 +1888,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                     TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Developed_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Right_Limit, Left_Limit, "Developed", writer)
 
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date, country, "Developed")
+                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Developed")
 
                     if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
@@ -1900,10 +1913,10 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 
                 # If there is no composition, a new Index will be created
                 else:
-                    TopPercentage = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Developed", writer)
+                    TopPercentage, temp_Country = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Developed", writer)
                     
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, Lower_GMSR, Upper_GMSR, date, country, "Developed")
+                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Developed")
 
                     if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
