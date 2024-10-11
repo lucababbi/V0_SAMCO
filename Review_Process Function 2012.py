@@ -186,7 +186,7 @@ def China_A_Securities(Frame: pl.DataFrame) -> pl.DataFrame:
                                         (pl.col("Capfactor") / 0.2).alias("Capfactor_CN"),
                                         (pl.lit(0.20).alias("Adjustment"))
                                     )
-        elif Date < datetime.date(2024,6,24):
+        else:
             Chinese_Securities = temp_Frame.filter(
                                 ((pl.col("Exchange") == 'Stock Exchange of Hong Kong - SSE Securities') |
                                 (pl.col("Exchange") == 'Stock Exchange of Hong Kong - SZSE Securities')) & 
@@ -196,18 +196,6 @@ def China_A_Securities(Frame: pl.DataFrame) -> pl.DataFrame:
                             ).with_columns(
                                 (pl.col("Capfactor") / 0.2).alias("Capfactor_CN"),
                                 (pl.lit(0.20).alias("Adjustment"))
-                            )
-            
-        elif Date == datetime.date(2024,6,2):
-            Chinese_Securities = temp_Frame.filter(
-                                ((pl.col("Exchange") == 'Stock Exchange of Hong Kong - SSE Securities') |
-                                (pl.col("Exchange") == 'Stock Exchange of Hong Kong - SZSE Securities')) & 
-                                (pl.col("Country") == "CN")
-                            ).select(
-                                ["Date", "Internal_Number", "Capfactor", "Instrument_Name", "Country"]
-                            ).with_columns(
-                                (pl.col("Capfactor")).alias("Capfactor_CN"),
-                                (pl.lit(1).alias("Adjustment"))
                             )
         
         Results = Results.vstack(Chinese_Securities)
