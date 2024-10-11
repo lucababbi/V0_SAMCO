@@ -151,7 +151,10 @@ def China_A_Securities(Frame: pl.DataFrame) -> pl.DataFrame:
     Results = pl.DataFrame({"Date": pl.Series(dtype=pl.Date),
                             "Internal_Number": pl.Series(dtype=pl.Utf8),
                             "Capfactor": pl.Series(dtype=pl.Float64),
-                            "Capfactor_CN": pl.Series(dtype=pl.Float64)
+                            "Instrument_Name": pl.Series(dtype=pl.Utf8),
+                            "Country": pl.Series(dtype=pl.Utf8),
+                            "Capfactor_CN": pl.Series(dtype=pl.Float64),
+                            "Adjustment": pl.Series(dtype=pl.Float64)
                             })
 
     for Date in Frame.select(["Date"]).unique().sort("Date").to_series():
@@ -161,33 +164,51 @@ def China_A_Securities(Frame: pl.DataFrame) -> pl.DataFrame:
         if  datetime.date(2019,3,18) <= Date < datetime.date(2019,9,23):
             Chinese_Securities = temp_Frame.filter(
                                 (
-                                    (pl.col("Country") == "CN") &
+                                    (pl.col("Country") == "CN") & (pl.col("Capfactor") < 1) &
                                     (
                                         pl.col("Instrument_Name").str.contains("'A'") |
                                         pl.col("Instrument_Name").str.contains("(CCS)")
                                     ))
-                            ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).with_columns(
-                                        (pl.col("Capfactor") / 0.1).alias("Capfactor_CN")
+                            ).select(pl.col(["Date", "Internal_Number", "Capfactor", "Instrument_Name", "Country"])).with_columns(
+                                        (pl.col("Capfactor") / 0.1).alias("Capfactor_CN"),
+                                        (pl.lit(0.10).alias("Adjustment"))
                                     )
 
-        elif Date <= datetime.date(2022,3,21):
+        elif Date < datetime.date(2022,9,19):
             Chinese_Securities = temp_Frame.filter(
                                 (
-                                    (pl.col("Country") == "CN") &
+                                    (pl.col("Country") == "CN") & (pl.col("Capfactor") < 1) &
                                     (
                                         pl.col("Instrument_Name").str.contains("'A'") |
                                         pl.col("Instrument_Name").str.contains("(CCS)")
                                     ))
-                            ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).with_columns(
-                                        (pl.col("Capfactor") / 0.2).alias("Capfactor_CN")
+                            ).select(pl.col(["Date", "Internal_Number", "Capfactor", "Instrument_Name", "Country"])).with_columns(
+                                        (pl.col("Capfactor") / 0.2).alias("Capfactor_CN"),
+                                        (pl.lit(0.20).alias("Adjustment"))
                                     )
-        else:
+        elif Date < datetime.date(2024,6,24):
             Chinese_Securities = temp_Frame.filter(
-                                        (pl.col("Exchange") != 'Stock Exchange of Hong Kong - SSE Securities') &
-                                        (pl.col("Exchange") != 'Stock Exchange of Hong Kong - SZSE Securities')
-                                    ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).with_columns(
-                                        (pl.col("Capfactor") / 0.2).alias("Capfactor_CN")
-                                    )
+                                ((pl.col("Exchange") == 'Stock Exchange of Hong Kong - SSE Securities') |
+                                (pl.col("Exchange") == 'Stock Exchange of Hong Kong - SZSE Securities')) & 
+                                (pl.col("Country") == "CN")
+                            ).select(
+                                ["Date", "Internal_Number", "Capfactor", "Instrument_Name", "Country"]
+                            ).with_columns(
+                                (pl.col("Capfactor") / 0.2).alias("Capfactor_CN"),
+                                (pl.lit(0.20).alias("Adjustment"))
+                            )
+            
+        elif Date == datetime.date(2024,6,2):
+            Chinese_Securities = temp_Frame.filter(
+                                ((pl.col("Exchange") == 'Stock Exchange of Hong Kong - SSE Securities') |
+                                (pl.col("Exchange") == 'Stock Exchange of Hong Kong - SZSE Securities')) & 
+                                (pl.col("Country") == "CN")
+                            ).select(
+                                ["Date", "Internal_Number", "Capfactor", "Instrument_Name", "Country"]
+                            ).with_columns(
+                                (pl.col("Capfactor")).alias("Capfactor_CN"),
+                                (pl.lit(1).alias("Adjustment"))
+                            )
         
         Results = Results.vstack(Chinese_Securities)
             
@@ -591,9 +612,10 @@ def Fill_Chairs(temp_Country, Companies_To_Fill, Country_Cutoff, Country_Cutoff_
 
     # Fourth priority: Add priority 4 to priority 1, 2, and 3
     priority4 = temp_Country.filter(
-        ((pl.col("Full_MCAP_USD_Cutoff_Company") >= Country_Cutoff) & ((pl.col("Full_MCAP_USD_Cutoff_Company") < Country_Cutoff_Upper)))
-        ((pl.col("Size") == "SMALL"))
+    ((pl.col("Full_MCAP_USD_Cutoff_Company") >= Country_Cutoff) & (pl.col("Full_MCAP_USD_Cutoff_Company") < Country_Cutoff_Upper)) &  # Add '&' to combine conditions
+    (pl.col("Size") == "SMALL")  # Condition for Size being 'SMALL'
     )
+
     
     if len(priority1) + len(priority2) + len(priority3) + len(priority4) >= Companies_To_Fill:
         TopPercentage = priority1.vstack(priority2).vstack(priority3).vstack(priority4)
@@ -777,6 +799,12 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
                 .alias("Update_Shadow_Company")  # Name of the new column
             ).drop("Shadow_Company").rename({"Update_Shadow_Company": "Shadow_Company"})
 
+        # Adjust the columns
+        TopPercentage = TopPercentage.with_columns(
+            pl.lit("Standard").alias("Size"),
+            pl.lit("Buffer").alias("Case")
+        )
+
     # Return the Frame
     return TopPercentage
 
@@ -868,10 +896,16 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
 
     # Standard #
     # Get which of the Current Index Components are still Investable
-    Security_Standard_Index_Current = QID_Standard_Index.join(temp_Emerging.filter((pl.col("Date")==date) & (pl.col("Country") == country)),
-        on=["Internal_Number"], how="left").select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number",
-        "Instrument_Name", "Free_Float", "Capfactor", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff", 
-        "Shadow_Company"])).filter(pl.col("Full_MCAP_USD_Cutoff") > 0).select(pl.col(["Date", "ENTITY_QID", "Internal_Number", "Country", "Shadow_Company"]))
+    if Segment == "Emerging":
+        Security_Standard_Index_Current = QID_Standard_Index.join(temp_Emerging.filter((pl.col("Date")==date) & (pl.col("Country") == country)),
+            on=["Internal_Number"], how="left").select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number",
+            "Instrument_Name", "Free_Float", "Capfactor", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff", 
+            "Shadow_Company"])).filter(pl.col("Full_MCAP_USD_Cutoff") > 0).select(pl.col(["Date", "ENTITY_QID", "Internal_Number", "Country", "Shadow_Company"]))
+    else:
+        Security_Standard_Index_Current = QID_Standard_Index.join(temp_Developed.filter((pl.col("Date")==date) & (pl.col("Country") == country)),
+            on=["Internal_Number"], how="left").select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number",
+            "Instrument_Name", "Free_Float", "Capfactor", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff", 
+            "Shadow_Company"])).filter(pl.col("Full_MCAP_USD_Cutoff") > 0).select(pl.col(["Date", "ENTITY_QID", "Internal_Number", "Country", "Shadow_Company"]))  
     
     # Group them by ENTITY_QID
     Company_Standard_Index_Current = Security_Standard_Index_Current.group_by(
@@ -1588,22 +1622,22 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             Lower_GMSR = GMSR_Frame.select(["GMSR_Developed_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
             Upper_GMSR = GMSR_Frame.select(["GMSR_Developed_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
 
-            # Developed #
-            for country in temp_Developed_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
+            # # Developed #
+            # for country in temp_Developed_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
             
-                TopPercentage, temp_Country = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Developed", writer)
+            #     TopPercentage, temp_Country = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Developed", writer)
 
-                # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Developed")
+            #     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
+            #     TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Developed")
 
-                # Stack to Output_Standard_Index
-                Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage)
+            #     # Stack to Output_Standard_Index
+            #     Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage)
 
-                # Create the Output_Count_Standard_Index for future rebalacing
-                Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
-                        pl.len().alias("Count"),
-                        pl.col("Date").first().alias("Date")
-                    ).sort("Count", descending=True))
+            #     # Create the Output_Count_Standard_Index for future rebalacing
+            #     Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
+            #             pl.len().alias("Count"),
+            #             pl.col("Date").first().alias("Date")
+            #         ).sort("Count", descending=True))
 
             #################################
             ###########Assign Size###########
@@ -1877,67 +1911,67 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                     ).sort("Count", descending=True))
 
             # Developed #
-            Lower_GMSR = GMSR_Frame.select(["GMSR_Developed_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
-            Upper_GMSR = GMSR_Frame.select(["GMSR_Developed_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+            # Lower_GMSR = GMSR_Frame.select(["GMSR_Developed_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+            # Upper_GMSR = GMSR_Frame.select(["GMSR_Developed_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
 
-            for country in temp_Developed_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
+            # for country in temp_Developed_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
 
-                # Check if there is already a previous Index creation for the current country
-                if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") < date))) > 0:
+            #     # Check if there is already a previous Index creation for the current country
+            #     if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") < date))) > 0:
 
-                    TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Developed_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Right_Limit, Left_Limit, "Developed", writer)
+            #         TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Developed_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Right_Limit, Left_Limit, "Developed", writer)
 
-                    # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Developed")
+            #         # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
+            #         TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Developed")
 
-                    if Excel_Recap_Rebalancing == True and country == Country_Plotting:
+            #         if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
-                        # Save DataFrame to Excel
-                        TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-                        # Create and save the chart
-                        chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
+            #             # Save DataFrame to Excel
+            #             TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+            #             # Create and save the chart
+            #             chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
 
-                        # Insert the chart into the Excel file
-                        workbook = writer.book
-                        worksheet = writer.sheets[f'{date}_{country}']
-                        worksheet.insert_image('O2', chart_file)
+            #             # Insert the chart into the Excel file
+            #             workbook = writer.book
+            #             worksheet = writer.sheets[f'{date}_{country}']
+            #             worksheet.insert_image('O2', chart_file)
 
-                    # Stack to Output_Standard_Index
-                    Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
+            #         # Stack to Output_Standard_Index
+            #         Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
                     
-                    # Create the Output_Count_Standard_Index for future rebalacing
-                    Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
-                        pl.len().alias("Count"),
-                        pl.col("Date").first().alias("Date")
-                    ).sort("Count", descending=True))
+            #         # Create the Output_Count_Standard_Index for future rebalacing
+            #         Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
+            #             pl.len().alias("Count"),
+            #             pl.col("Date").first().alias("Date")
+            #         ).sort("Count", descending=True))
                 
-                # If there is no composition, a new Index will be created
-                else:
-                    TopPercentage, temp_Country = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Developed", writer)
+            #     # If there is no composition, a new Index will be created
+            #     else:
+            #         TopPercentage, temp_Country = Index_Creation_Box(temp_Developed_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Developed", writer)
                     
-                    # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Developed")
+            #         # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
+            #         TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Developed")
 
-                    if Excel_Recap_Rebalancing == True and country == Country_Plotting:
+            #         if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
-                        # Save DataFrame to Excel
-                        TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-                        # Create and save the chart
-                        chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
+            #             # Save DataFrame to Excel
+            #             TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
+            #             # Create and save the chart
+            #             chart_file = Curve_Plotting(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR)
 
-                        # Insert the chart into the Excel file
-                        workbook = writer.book
-                        worksheet = writer.sheets[f'{date}_{country}']
-                        worksheet.insert_image('O2', chart_file)
+            #             # Insert the chart into the Excel file
+            #             workbook = writer.book
+            #             worksheet = writer.sheets[f'{date}_{country}']
+            #             worksheet.insert_image('O2', chart_file)
 
-                    # Stack to Output_Standard_Index
-                    Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
+            #         # Stack to Output_Standard_Index
+            #         Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
                     
-                    # Create the Output_Count_Standard_Index for future rebalacing
-                    Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
-                        pl.len().alias("Count"),
-                        pl.col("Date").first().alias("Date")
-                    ).sort("Count", descending=True))
+            #         # Create the Output_Count_Standard_Index for future rebalacing
+            #         Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
+            #             pl.len().alias("Count"),
+            #             pl.col("Date").first().alias("Date")
+            #         ).sort("Count", descending=True))
 
             #################################
             ###########Assign Size###########
