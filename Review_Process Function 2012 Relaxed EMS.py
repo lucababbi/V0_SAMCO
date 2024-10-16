@@ -320,14 +320,14 @@ def Equity_Minimum_Size(df: pl.DataFrame, Pivot_TOR, EMS_Frame, date, Segment: p
                     previous_row = df_date.row(previous_rank - 1)
                     previous_coverage = previous_row[df_date.columns.index("Cumulative_Free_Float_MCAP_USD_Cutoff_Company")] / total_market_cap
                     
-                    if 0.995 <= previous_coverage <= 0.9999:
+                    if 0.998 <= previous_coverage <= 1:
                         equity_universe_min_size = previous_row[df_date.columns.index("Full_MCAP_USD_Cutoff_Company")]
                         df_date1 = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).with_columns([
                             pl.lit(equity_universe_min_size).alias("EUMSR"),
                             pl.lit(previous_rank).alias("EUMSR_Rank")
                         ])
-                    elif previous_coverage < 0.99:
-                        min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.995).select("Full_MCAP_USD_Cutoff_Company").head(1)
+                    elif previous_coverage < 0.998:
+                        min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.998).select("Full_MCAP_USD_Cutoff_Company").head(1)
                         equity_universe_min_size = min_size_company[0, 0]
                         previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
 
@@ -335,8 +335,8 @@ def Equity_Minimum_Size(df: pl.DataFrame, Pivot_TOR, EMS_Frame, date, Segment: p
                             pl.lit(equity_universe_min_size).alias("EUMSR"),
                             pl.lit(previous_rank).alias("EUMSR_Rank")
                         ])
-                    else: # Correct 0.9925 should not be crossed, just take the previous one (so either equal to 0.9925 or less)
-                        min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 0.9999).select("Full_MCAP_USD_Cutoff_Company").head(1)
+                    else:
+                        min_size_company = df_date.filter(pl.col("Cumulative_Coverage_Cutoff") >= 1).select("Full_MCAP_USD_Cutoff_Company").head(1)
                         equity_universe_min_size = min_size_company[0, 0]
                         previous_rank = df_date.filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= equity_universe_min_size).height
 
@@ -944,13 +944,18 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
     if Coverage_Adjustment == True:
         Country_Adjustment =  Percentage / Country_Coverage.filter(pl.col("Country") == country).select(pl.col("Coverage")).to_numpy()[0][0]
 
-        if (country == "KR"):
-            Country_Adjustment = Percentage / 0.975
-        elif (country == "TW") | (country == "IN"):
-            Country_Adjustment = Percentage / 0.995
+        Left_Limit = Country_Adjustment - (0.05 / Country_Coverage.filter(pl.col("Country") == country).select(pl.col("Coverage")).to_numpy()[0][0])
+        Right_Limit = Country_Adjustment + (0.05 / Country_Coverage.filter(pl.col("Country") == country).select(pl.col("Coverage")).to_numpy()[0][0])
 
-        Left_Limit = Country_Adjustment - 0.05
-        Right_Limit = Country_Adjustment + 0.05
+        if (country == "KR") | (country == "TW") | (country == "IN"):
+            Country_Adjustment = Percentage / 0.975
+            Left_Limit = Country_Adjustment - (0.05 / 0.975)
+            Right_Limit = Country_Adjustment + (0.05 / 0.975)
+
+        elif country == "CN":
+            Country_Adjustment = Percentage / 0.935
+            Left_Limit = Country_Adjustment - (0.05 / 0.935)
+            Right_Limit = Country_Adjustment + (0.05 / 0.935)
 
         if Right_Limit > 1: Right_Limit = 1 # Adjust it in case of being higher than 100%
     else:
@@ -1802,12 +1807,12 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             elif CumWeight_Cutoff_Rank > (GMSR_Lower_Buffer/0.99):
                 New_Data = pl.DataFrame({
                                             "Date": [date],
-                                            "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
-                                            "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
-                                            "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
-                                            "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
-                                            "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
-                                            "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
+                                            "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer/0.99).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
+                                            "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer/0.99).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
+                                            "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer/0.99).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
+                                            "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer/0.99).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
+                                            "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer/0.99).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
+                                            "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") < GMSR_Lower_Buffer/0.99).tail(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
                                             "Rank": [
                                                         temp_Developed_Aggregate
                                                         .filter(pl.col("Full_MCAP_USD_Cutoff_Company") == 
@@ -1825,12 +1830,12 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             elif CumWeight_Cutoff_Rank < (GMSR_Upper_Buffer/0.99):
                 New_Data = pl.DataFrame({
                                         "Date": [date],
-                                        "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
-                                        "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
-                                        "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
-                                        "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
-                                        "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
-                                        "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
+                                        "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer/0.99).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
+                                        "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer/0.99).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
+                                        "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer/0.99).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
+                                        "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer/0.99).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
+                                        "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer/0.99).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
+                                        "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer/0.99).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
                                         "Rank": [
                                                     temp_Developed_Aggregate
                                                     .filter(pl.col("Full_MCAP_USD_Cutoff_Company") == 
@@ -2150,13 +2155,14 @@ Recap_Weight_Standard = (
 )
 
 # Store the Results
-Small_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level_{Percentage}_IN-KR-TW.csv")
-Standard_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard_Index_Security_Level_{Percentage}_IN-KR-TW.csv")
-Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Count_{Percentage}_IN-KR-TW.csv")
-Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Weight_{Percentage}_IN-KR-TW.csv")
-Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Count_Standard_{Percentage}_IN-KR-TW.csv")
-Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Weight_Standard_{Percentage}_IN-KR-TW.csv")
-GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\GMSR_Frame_{Percentage}_IN-KR-TW.csv")
+Small_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level_{Percentage}_UPDATE.csv")
+Standard_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard_Index_Security_Level_{Percentage}_UPDATE.csv")
+Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Count_{Percentage}_UPDATE.csv")
+Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Weight_{Percentage}_UPDATE.csv")
+Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Count_Standard_{Percentage}_UPDATE.csv")
+Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Weight_Standard_{Percentage}_UPDATE.csv")
+GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\GMSR_Frame_{Percentage}_UPDATE.csv")
+EMS_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\EMS_Frame_{Percentage}_UPDATE.csv")
 
 # Delete .PNG from main folder
 Main_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO"
