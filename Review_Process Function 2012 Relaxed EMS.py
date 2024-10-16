@@ -50,6 +50,9 @@ Excel_Recap_Rebalancing = False
 Country_Plotting = "EG"
 Output_File = rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\TopPercentage_Report_Rebalancing_{Country_Plotting}.xlsx"
 
+# ETFs SPDR-iShares
+ETF = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\ETFs_STANDARD-SMALL.csv", separator=";")
+
 ##################################
 #########FOR Screening############
 ##################################
@@ -666,6 +669,17 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
                 .otherwise(False)
                 .alias("Shadow_Company")
             )
+
+        # Check for Companies inside the ETFs
+        TopPercentage = TopPercentage.drop("Size", "Shadow_Company").join(ETF.select(pl.col(["Internal_Number", "Size"])), on=["Internal_Number"], how="left").filter(
+            (pl.col("Size") == "STANDARD") | (pl.col("Size").is_null())
+        ).with_columns(
+            pl.when(pl.col("Size")=="STANDARD")
+            .then(False)
+            .otherwise(True).alias("Shadow_Company")
+        ).with_columns(
+            pl.lit("Standard").alias("Size")
+        )
 
     else: 
         # Buffer for Companies
@@ -1624,7 +1638,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
 
                 # Stack to Output_Standard_Index
-                Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage)
+                Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
 
                 # Create the Output_Count_Standard_Index for future rebalacing
                 Output_Count_Standard_Index = Output_Count_Standard_Index.vstack(TopPercentage.group_by("Country").agg(
@@ -2103,7 +2117,6 @@ Small_Index_Security_Level = Small_Index_Security_Level.with_columns(
     (pl.col("Mcap_Units_Index_Currency") / pl.col("Mcap_Units_Index_Currency").sum().over("Date")).alias("Weight")
 )
 
-
 # Create a Recap
 Recap_Count = (
     Small_Index_Security_Level
@@ -2155,14 +2168,14 @@ Recap_Weight_Standard = (
 )
 
 # Store the Results
-Small_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level_{Percentage}_UPDATE.csv")
-Standard_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard_Index_Security_Level_{Percentage}_UPDATE.csv")
-Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Count_{Percentage}_UPDATE.csv")
-Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Weight_{Percentage}_UPDATE.csv")
-Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Count_Standard_{Percentage}_UPDATE.csv")
-Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Weight_Standard_{Percentage}_UPDATE.csv")
-GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\GMSR_Frame_{Percentage}_UPDATE.csv")
-EMS_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\EMS_Frame_{Percentage}_UPDATE.csv")
+Small_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level_{Percentage}_ETF_Version.csv")
+Standard_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard_Index_Security_Level_{Percentage}_ETF_Version.csv")
+Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Count_{Percentage}_ETF_Version.csv")
+Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Weight_{Percentage}_ETF_Version.csv")
+Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Count_Standard_{Percentage}_ETF_Version.csv")
+Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Recap_Weight_Standard_{Percentage}_ETF_Version.csv")
+GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\GMSR_Frame_{Percentage}_ETF_Version.csv")
+EMS_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\EMS_Frame_{Percentage}_ETF_Version.csv")
 
 # Delete .PNG from main folder
 Main_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO"
