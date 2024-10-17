@@ -47,7 +47,7 @@ Coverage_Adjustment = True
 Excel_Recap = False
 Excel_Recap_Rebalancing = False
 
-Country_Plotting = "PK"
+Country_Plotting = "BR"
 Output_File = rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\TopPercentage_Report_Rebalancing_{Country_Plotting}.xlsx"
 
 # ETFs SPDR-iShares
@@ -56,32 +56,28 @@ ETF = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAM
 ##################################
 #########Index Continuity#########
 ##################################
-def Index_Continuity(temp_Country, TopPercentage, Segment: pl.Utf8, Country_Cutoff, Country_Cutoff_Lower, Country_Cutoff_Upper):
+def Index_Continuity(temp_Country, TopPercentage_Securities, Segment: pl.Utf8, Country_Cutoff, Country_Cutoff_Lower, Country_Cutoff_Upper):
 
-    if (Segment == "Emerging") & (len(TopPercentage) < 3):
+    if (Segment == "Emerging") & (len(TopPercentage_Securities.filter(pl.col("Shadow_Company") == False)) < 3):
 
         # Check if there are at least 3 NON-NEW Companies
         if len(temp_Country.filter(pl.col("Size") != "NEW")) >= 3:
-            TopPercentage = temp_Country.filter(pl.col("Size") != "New").sort("Full_MCAP_USD_Cutoff_Company", descending = True).head(3).with_columns(
+            TopPercentage_Securities = temp_Country.filter(pl.col("Size") != "New").sort("Full_MCAP_USD_Cutoff", descending = True).head(3).with_columns(
                                                     pl.lit("Standard").alias("Size"),
                                                     pl.lit("Index Continuity").alias("Case"),
                                                     pl.lit(False).alias("Shadow_Company")
                                                 )
         else:
-            TopPercentage = temp_Country.sort("Full_MCAP_USD_Cutoff_Company", descending = True).head(3).with_columns(
+            TopPercentage_Securities = temp_Country.sort("Full_MCAP_USD_Cutoff", descending = True).head(3).with_columns(
                                                     pl.lit("Standard").alias("Size"),
                                                     pl.lit("Index Continuity").alias("Case"),
                                                     pl.lit(False).alias("Shadow_Company")
                                                 )
 
-    elif (Segment == "Developed") & (len(TopPercentage) < 5):
+    elif (Segment == "Developed") & (len(TopPercentage_Securities) < 5):
         print("Here")
 
-    # In case there are not enough Companies, Index would not be created
-    if (len(TopPercentage) < 3) & (Segment == "Emerging"):
-        TopPercentage = TopPercentage.head(0) # Keep only the columns of the Frame
-
-    return TopPercentage
+    return TopPercentage_Securities
 
 ##################################
 #########FOR Screening############
@@ -656,98 +652,118 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
     # Check if last Company Full_MCAP_USD_Cutoff_Company is in between Upper and Lower GMSR
 
     # No Buffer for the Starting Date
-    if date == Starting_Date:
+    if (date == Starting_Date) | (len(Output_Standard_Index.filter(pl.col("Country") == country)) == 0):
 
         # Case inside the box
         if (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] <= Upper_GMSR) & (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] >= Lower_GMSR):
         
             # Country_Cutoff is the Full_MCAP_USD_Cutoff_Company
-            Country_Cutoff = TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0]
-
-            # Check which Companies are below the Country_GMSR
-            TopPercentage = TopPercentage.with_columns(
-                pl.when(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_Cutoff)
-                .then(True)
-                .otherwise(False)
-                .alias("Shadow_Company")
-            )
+            Country_Cutoff_Shadow = TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] / 2
+            Country_Cutoff_Upper_Shadow = Country_Cutoff_Shadow * 1.5
+            Country_Cutoff_Lower_Shadow = Country_Cutoff_Shadow * (2/3)
 
         # Case above the box
         elif (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] > Upper_GMSR):
 
             # Country_Cutoff is the Upper_GMSR
-            Country_Cutoff = Upper_GMSR
-
-            # Check which Companies are below the Country_GMSR
-            TopPercentage = TopPercentage.with_columns(
-                pl.when(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_Cutoff)
-                .then(True)
-                .otherwise(False)
-                .alias("Shadow_Company")
-            )
+            Country_Cutoff_Shadow = Upper_GMSR / 2
+            Country_Cutoff_Upper_Shadow = Country_Cutoff_Shadow * 1.5
+            Country_Cutoff_Lower_Shadow = Country_Cutoff_Shadow * (2/3)
 
         # Case below the box
         else:
 
-            # Country_Cutoff is the GMSR / 2
-            Country_Cutoff = Lower_GMSR
+            # Country_Cutoff is the GMSR
+            Country_Cutoff_Shadow = Lower_GMSR / 2
+            Country_Cutoff_Upper_Shadow = Country_Cutoff_Shadow * 1.5
+            Country_Cutoff_Lower_Shadow = Country_Cutoff_Shadow * (2/3)
 
-            # Check which Companies are below the Country_Cutoff
-            TopPercentage = TopPercentage.with_columns(
-                pl.when(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < Country_Cutoff)
-                .then(True)
-                .otherwise(False)
-                .alias("Shadow_Company")
-            )
+        # Transform TopPercentage from Companies to Securities level
+        TopPercentage_Securities = temp_Emerging.select(pl.col("Date", "Internal_Number", "Instrument_Name",
+                                "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff")).filter(pl.col("ENTITY_QID").is_in(TopPercentage.select(
+                                    pl.col("ENTITY_QID").unique()
+                                ))).with_columns(
+                                    pl.lit("Standard").alias("Size")
+                                )
 
         # Check for Companies inside the ETFs
-        TopPercentage = TopPercentage.drop("Size", "Shadow_Company").join(ETF.select(pl.col(["Internal_Number", "Size"])), on=["Internal_Number"], how="left").filter(
-            (pl.col("Size") == "STANDARD") | (pl.col("Size").is_null())
-        ).with_columns(
-            pl.when(pl.col("Size")=="STANDARD")
-            .then(False)
-            .otherwise(True).alias("Shadow_Company")
-        ).with_columns(
-            pl.lit("Standard").alias("Size")
-        )
+        TopPercentage_Securities = (
+                            TopPercentage_Securities
+                            .drop("Size")
+                            .join(
+                                ETF.select(pl.col(["Internal_Number", "Size"])),
+                                on=["Internal_Number"],
+                                how="left"
+                            )
+                            .filter(
+                                (pl.col("Size") == "STANDARD") | (pl.col("Size").is_null())
+                            )
+                            .with_columns(
+                                pl.when(pl.col("Size") == "STANDARD")
+                                .then(False)
+                                .otherwise(
+                                    pl.when(pl.col("Free_Float_MCAP_USD_Cutoff") >= Country_Cutoff_Lower_Shadow)
+                                    .then(False)
+                                    .otherwise(True)
+                                ).alias("Shadow_Company")
+                            )
+                            .with_columns(
+                                pl.lit("Standard").alias("Size")
+                            )
+                        )
+        
+        # Check that there are at least 3 Companies
+        if len(temp_Emerging.filter(pl.col("Country") == country)) >= 3:
+
+            # Check for Index Continuity
+            TopPercentage_Securities = Index_Continuity(temp_Country, TopPercentage_Securities, "Emerging", Country_Cutoff_Shadow, Country_Cutoff_Lower_Shadow, Country_Cutoff_Upper_Shadow)
+        
+        # In case there are not enough Companies
+        else:
+            TopPercentage_Securities = TopPercentage_Securities.head(0)
+            TopPercentage = TopPercentage.head(0)
+
+        TopPercentage = TopPercentage_Securities.group_by(
+                                                    ["Date", "ENTITY_QID"]).agg([
+                                                        pl.col("Country").first().alias("Country"),
+                                                    ]).with_columns(
+                                                        pl.lit("Standard").alias("Size"),
+                                                        pl.lit("Index Creation").alias("Case")
+                                                    )
 
     else: 
         # Buffer for Companies
         Companies_To_Fill = TopPercentage.height
-
-        # Get the Newest (as of Cutoff) Full_MCAP_USD_Cutoff
-        Original_MCAP_Emerging = Emerging.filter(pl.col("Date") == date).group_by("ENTITY_QID").agg(pl.col("Full_MCAP_USD_Cutoff").sum().alias("Full_MCAP_USD_Cutoff_Company"))
-        Original_MCAP_Developed = Developed.filter(pl.col("Date") == date).group_by("ENTITY_QID").agg(pl.col("Full_MCAP_USD_Cutoff").sum().alias("Full_MCAP_USD_Cutoff_Company"))
 
         # Create the list of Dates
         Dates_List = Pivot_TOR.index.to_list()
         Previous_Date = datetime.datetime.strptime(Dates_List[max(0, IDX_Current - 1)], "%Y-%m-%d").date()
 
         # Information at Security Level for Current Country Index transposed into Company Level
-        QID_Standard_Index = Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") == Previous_Date)).select(pl.col("ENTITY_QID", "Shadow_Company", "Internal_Number"))
-        QID_Small_Index = Small_Index.filter((pl.col("Country") == country) & (pl.col("Date") == Previous_Date)).select(pl.col("ENTITY_QID", "Shadow_Company", "Internal_Number", "Country"))
+        QID_Standard_Index = Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") == Previous_Date)).select(
+            pl.col("ENTITY_QID", "Shadow_Company", "Internal_Number"))
+
+        # Information at Security Level for Current Country Index transposed into Company Level
+        QID_Small_Index = Small_Index.filter((pl.col("Country") == country) & (pl.col("Date") == Previous_Date)).select(
+            pl.col("ENTITY_QID", "Shadow_Company", "Internal_Number", "Country"))
 
         # Get which of the Current Index Components are still Investable by checking temp_Emerging/temp_Developed after Screens have been applied to them
         if Segment == "Emerging":
-            Security_Standard_Index_Current = QID_Standard_Index.join(temp_Emerging.select(pl.col(["Internal_Number", "Full_MCAP_USD_Cutoff", "Free_Float_MCAP_USD_Cutoff", "Country"])),
-                on=["Internal_Number"], how="left").filter((pl.col("Full_MCAP_USD_Cutoff") > 0) & (pl.col("Free_Float_MCAP_USD_Cutoff") > 0)).select(pl.col(["ENTITY_QID",
-                "Shadow_Company", "Country"]))
+            Security_Standard_Index_Current = QID_Standard_Index.join(temp_Emerging.select(pl.col(["Internal_Number", "Country"])),
+                on=["Internal_Number"], how="left")
             
             # Small #
-            Security_Small_Index_Current = QID_Small_Index.join(temp_Emerging.select(pl.col(["Internal_Number", "Full_MCAP_USD_Cutoff", "Free_Float_MCAP_USD_Cutoff", "Country"])),
-                on=["Internal_Number"], how="left").filter((pl.col("Full_MCAP_USD_Cutoff") > 0) & (pl.col("Free_Float_MCAP_USD_Cutoff") > 0)).select(pl.col(["ENTITY_QID",
-                "Shadow_Company", "Country"]))
+            Security_Small_Index_Current = QID_Small_Index.join(temp_Emerging.select(pl.col(["Internal_Number", "Country"])),
+                on=["Internal_Number"], how="left")
         
         elif Segment == "Developed":
-            Security_Standard_Index_Current = QID_Standard_Index.join(temp_Developed.select(pl.col(["Internal_Number", "Full_MCAP_USD_Cutoff", "Free_Float_MCAP_USD_Cutoff", "Country"])),
-                on=["Internal_Number"], how="left").filter((pl.col("Full_MCAP_USD_Cutoff") > 0) & (pl.col("Free_Float_MCAP_USD_Cutoff") > 0)).select(pl.col(["ENTITY_QID",
-                "Shadow_Company", "Country"]))
+            Security_Standard_Index_Current = QID_Standard_Index.join(temp_Developed.select(pl.col(["Internal_Number", "Country"])),
+                on=["Internal_Number"], how="left")
             
             # Small #
-            Security_Small_Index_Current = QID_Small_Index.join(temp_Developed.select(pl.col(["Internal_Number", "Full_MCAP_USD_Cutoff", "Free_Float_MCAP_USD_Cutoff", "Country"])),
-                on=["Internal_Number"], how="left").filter((pl.col("Full_MCAP_USD_Cutoff") > 0) & (pl.col("Free_Float_MCAP_USD_Cutoff") > 0)).select(pl.col(["ENTITY_QID",
-                "Shadow_Company", "Country"]))
-
+            Security_Small_Index_Current = QID_Small_Index.join(temp_Developed.select(pl.col(["Internal_Number", "Country"])),
+                on=["Internal_Number"], how="left")
+            
         # Group them by ENTITY_QID
         Company_Standard_Index_Current = Security_Standard_Index_Current.group_by(
                                                     ["ENTITY_QID"]).agg([
@@ -788,14 +804,6 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
 
             TopPercentage = Fill_Chairs(temp_Country, Companies_To_Fill, Country_Cutoff, Country_Cutoff_Upper, Country_Cutoff_Lower)
 
-            # Update Shadow_Company
-            TopPercentage = TopPercentage.with_columns(
-                pl.when(pl.col("Shadow_Company") == False)  # Condition: Shadow_Company is False
-                .then(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < (Country_Cutoff * 0.5 * (2 / 3)))  # Condition for False case
-                .otherwise(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < (Country_Cutoff * 0.5))  # Condition for True case
-                .alias("Update_Shadow_Company")  # Name of the new column
-            ).drop("Shadow_Company").rename({"Update_Shadow_Company": "Shadow_Company"})
-
         # Case above the box
         elif (TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] > Upper_GMSR):
 
@@ -805,14 +813,6 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
             Country_Cutoff_Lower = Country_Cutoff * (2/3)
 
             TopPercentage = Fill_Chairs(temp_Country, Companies_To_Fill, Country_Cutoff, Country_Cutoff_Upper, Country_Cutoff_Lower)
-
-            # Update Shadow_Company
-            TopPercentage = TopPercentage.with_columns(
-                pl.when(pl.col("Shadow_Company") == False)  # Condition: Shadow_Company is False
-                .then(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < (Country_Cutoff * 0.5 * (2 / 3)))  # Condition for False case
-                .otherwise(pl.col("Free_Float_MCAP_USD_Cutoff_Company") < (Country_Cutoff * 0.5))  # Condition for True case
-                .alias("Update_Shadow_Company")  # Name of the new column
-            ).drop("Shadow_Company").rename({"Update_Shadow_Company": "Shadow_Company"})
 
         # Case below the box
         else:
@@ -832,17 +832,60 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
                 .alias("Update_Shadow_Company")  # Name of the new column
             ).drop("Shadow_Company").rename({"Update_Shadow_Company": "Shadow_Company"})
 
-        # Check for Index Continuity
-        TopPercentage = Index_Continuity(temp_Country, TopPercentage, "Emerging", Country_Cutoff, Country_Cutoff_Lower, Country_Cutoff_Upper)
+        # Transform TopPercentage from Companies to Securities level
+        TopPercentage_Securities = temp_Emerging.select(pl.col("Date", "Internal_Number", "Instrument_Name",
+                                "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff")).filter(pl.col("ENTITY_QID").is_in(TopPercentage.select(
+                                    pl.col("ENTITY_QID").unique()
+                                ))).with_columns(
+                                    pl.lit("Standard").alias("Size")
+                                )
+        
+        # Add information of what was Shadow in Previous Index
+        TopPercentage_Securities = TopPercentage_Securities.join(
+                                                            Standard_Index
+                                                            .filter((pl.col("Date") == Previous_Date) & (pl.col("Country") == country))
+                                                            .select(pl.col(["Internal_Number", "Shadow_Company"])),
+                                                            on=["Internal_Number"],
+                                                            how="left"
+                                                        )
+        
+        # Verify for Shadow Securities
+        TopPercentage_Securities = TopPercentage_Securities.with_columns(
+                pl.when(pl.col("Shadow_Company") == False)  # Condition: Shadow_Company is False
+                .then(pl.col("Free_Float_MCAP_USD_Cutoff") < (Country_Cutoff * 0.5 * (2 / 3)))  # Condition for False case
+                .otherwise(pl.col("Free_Float_MCAP_USD_Cutoff") < (Country_Cutoff * 0.5))  # Condition for True case
+                .alias("Update_Shadow_Company")  # Name of the new column
+            ).drop("Shadow_Company").rename({"Update_Shadow_Company": "Shadow_Company"})
+        
+        # Variables Shadow for Index Continuity
+        Country_Cutoff_Shadow = Country_Cutoff / 2
+        Country_Cutoff_Upper_Shadow = Country_Cutoff_Shadow * 1.5
+        Country_Cutoff_Lower_Shadow = Country_Cutoff_Shadow * (2/3)
+
+        # Check that there are at least 3 Companies
+        if len(temp_Emerging.filter(pl.col("Country") == country)) >= 3:
+
+            # Check for Index Continuity
+            TopPercentage_Securities = Index_Continuity(temp_Country, TopPercentage_Securities, "Emerging", Country_Cutoff_Shadow, Country_Cutoff_Lower_Shadow, Country_Cutoff_Upper_Shadow)
+
+        else:
+
+            TopPercentage_Securities = TopPercentage_Securities.head(0)
+            TopPercentage = TopPercentage.head(0)
 
         # Adjust the columns
-        TopPercentage = TopPercentage.with_columns(
+        TopPercentage_Securities = TopPercentage_Securities.with_columns(
             pl.lit("Standard").alias("Size"),
             pl.lit("Buffer").alias("Case")
         )
 
+        TopPercentage = TopPercentage.with_columns(
+            pl.lit("Buffer").alias("Case"),
+            pl.lit("Standard").alias("Size")
+        )
+
     # Return the Frame
-    return TopPercentage
+    return TopPercentage, TopPercentage_Securities
 
 ##################################
 ##########Index Creation##########
@@ -957,32 +1000,16 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
     Dates_List = Pivot_TOR.index.to_list()
     Previous_Date = datetime.datetime.strptime(Dates_List[max(0, IDX_Current - 1)], "%Y-%m-%d").date()
 
-    # Information at Security Level
-    QID_Standard_Index = Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") == Previous_Date)).select(pl.col("ENTITY_QID", "Shadow_Company", "Internal_Number"))
+    # Information at Company Level
+    QID_Standard_Index = Output_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") == Previous_Date)).select(pl.col("Date", "ENTITY_QID"))
 
-    # Standard #
-    # Get which of the Current Index Components are still Investable
-    if Segment == "Emerging":
-        Security_Standard_Index_Current = QID_Standard_Index.join(temp_Emerging.filter((pl.col("Date")==date) & (pl.col("Country") == country)),
-            on=["Internal_Number"], how="left").select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number",
-            "Instrument_Name", "Free_Float", "Capfactor", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff", 
-            "Shadow_Company"])).filter(pl.col("Full_MCAP_USD_Cutoff") > 0).select(pl.col(["Date", "ENTITY_QID", "Internal_Number", "Country", "Shadow_Company"]))
-    else:
-        Security_Standard_Index_Current = QID_Standard_Index.join(temp_Developed.filter((pl.col("Date")==date) & (pl.col("Country") == country)),
-            on=["Internal_Number"], how="left").select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number",
-            "Instrument_Name", "Free_Float", "Capfactor", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff", 
-            "Shadow_Company"])).filter(pl.col("Full_MCAP_USD_Cutoff") > 0).select(pl.col(["Date", "ENTITY_QID", "Internal_Number", "Country", "Shadow_Company"]))  
-    
-    # Group them by ENTITY_QID
-    Company_Standard_Index_Current = Security_Standard_Index_Current.group_by(
-                                                ["Date", "ENTITY_QID"]).agg([
-                                                    pl.col("Country").first().alias("Country"),
-                                                    pl.col("Shadow_Company").first().alias("Shadow_Company"),
-                                                    pl.col("Internal_Number").first().alias("Internal_Number")
-                                                ])
+    # Check which of the QID_Standard_Index Companies is still alive (it is not relevant if it does not pass the Screens)
+    # Duplicates are dropped due to ENTITY_QID / Keep only Free_Float_MCAP_USD_Cutoff > 0
+    QID_Standard_Index = QID_Standard_Index.join(Emerging.filter((pl.col("Country")==country) & (pl.col("Date")==date)).select(pl.col("Free_Float_MCAP_USD_Cutoff",
+                        "ENTITY_QID")), on=["ENTITY_QID"], how="left").unique(subset=["ENTITY_QID"]).filter(pl.col("Free_Float_MCAP_USD_Cutoff") > 0)
 
     # Check the number selected in the previous Index
-    Company_Selection_Count = Company_Standard_Index_Current.height
+    Company_Selection_Count = QID_Standard_Index.height
 
     # Check where X number of Companies lands us on the Curve
     TopPercentage = temp_Country.head(Company_Selection_Count)
@@ -1457,17 +1484,10 @@ GMSR_Frame = pl.DataFrame({
 
 Output_Standard_Index = pl.DataFrame({
     "Date": pl.Series([], dtype=pl.Date),
-    "Internal_Number": pl.Series([], dtype=pl.Utf8),
-    "Instrument_Name": pl.Series([], dtype=pl.Utf8),
     "ENTITY_QID": pl.Series([], dtype=pl.Utf8),
     "Country": pl.Series([], dtype=pl.Utf8),
-    "Free_Float_MCAP_USD_Cutoff_Company": pl.Series([], dtype=pl.Float64),
-    "Full_MCAP_USD_Cutoff_Company": pl.Series([], dtype=pl.Float64),
-    "Weight_Cutoff": pl.Series([], dtype=pl.Float64),
-    "CumWeight_Cutoff": pl.Series([], dtype=pl.Float64),
     "Size": pl.Series([], dtype=pl.Utf8),
-    "Case": pl.Series([], dtype=pl.Utf8),
-    "Shadow_Company": pl.Series([], dtype=pl.Boolean)
+    "Case": pl.Series([], dtype=pl.Utf8)
 })
 
 Output_Count_Standard_Index = pl.DataFrame({
@@ -1489,6 +1509,27 @@ EMS_Frame = pl.DataFrame({
                         "Rank": pl.Series([], dtype=pl.Int64),
                         "FreeFloatMCAP_Minimum_Size": pl.Series([], dtype=pl.Float64)
 })
+
+Standard_Index = pl.DataFrame({
+    "Date": pl.Series([], dtype=pl.Date),
+    "Internal_Number": pl.Series([], dtype=pl.Utf8),
+    "Instrument_Name": pl.Series([], dtype=pl.Utf8),
+    "ENTITY_QID": pl.Series([], dtype=pl.Utf8),
+    "Country": pl.Series([], dtype=pl.Utf8),
+    "Size": pl.Series([], dtype=pl.Utf8),
+    "Shadow_Company": pl.Series([], dtype=pl.Boolean)
+})
+
+Small_Index = pl.DataFrame({
+    "Date": pl.Series([], dtype=pl.Date),
+    "Internal_Number": pl.Series([], dtype=pl.Utf8),
+    "Instrument_Name": pl.Series([], dtype=pl.Utf8),
+    "ENTITY_QID": pl.Series([], dtype=pl.Utf8),
+    "Country": pl.Series([], dtype=pl.Utf8),
+    "Size": pl.Series([], dtype=pl.Utf8),
+    "Shadow_Company": pl.Series([], dtype=pl.Boolean)
+})
+
 
 with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
     for date in Emerging.select(["Date"]).unique().sort("Date").to_series():
@@ -1656,14 +1697,14 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             #################################
 
             # Store the Screened Securities for Checks
-            Stored_Securities = temp_Emerging_Aggregate.filter(pl.col("Country") == Country_Plotting)
+            # Stored_Securities = temp_Emerging_Aggregate.filter(pl.col("Country") == Country_Plotting)
 
             # Get the GMSR
             Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
             Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
 
             # Filter only for Country_Plotting
-            temp_Emerging_Aggregate = temp_Emerging_Aggregate.filter(pl.col("Country") == Country_Plotting)
+            # temp_Emerging_Aggregate = temp_Emerging_Aggregate.filter(pl.col("Country") == Country_Plotting)
 
             # Emerging #
             for country in temp_Emerging_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
@@ -1671,7 +1712,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 TopPercentage, temp_Country = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Emerging", writer)
 
                 # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
+                TopPercentage, TopPercentage_Securities = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
 
                 # Stack to Output_Standard_Index
                 Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
@@ -1682,51 +1723,22 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                         pl.col("Date").first().alias("Date")
                     ).sort("Count", descending=True))
 
-            # Developed #
-            Lower_GMSR = GMSR_Frame.select(["GMSR_Developed_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
-            Upper_GMSR = GMSR_Frame.select(["GMSR_Developed_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
+                #################################
+                ###########Assign Size###########
+                #################################
 
-            #################################
-            ###########Assign Size###########
-            #################################
+                # Standard Index #
+                Standard_Index = Standard_Index.vstack(TopPercentage_Securities.select(Standard_Index.columns))
 
-            # Standard Index #
-            Emerging_Standard = temp_Emerging.filter(
-                pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))
-                ).join(
-                    Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"),
-                    on=["Date", "ENTITY_QID"],
-                    how="left"
-                )
-
-            Developed_Standard = temp_Developed.filter(
-                pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))
-                ).join(
-                    Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"),
-                    on=["Date", "ENTITY_QID"],
-                    how="left"
-                )
-
-            Standard_Index = Emerging_Standard.vstack(Developed_Standard)
-
-            # Small Index #
-            Emerging_Small = temp_Emerging.filter(
-                ~pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))
-                ).join(
-                    Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"),
-                    on=["Date", "ENTITY_QID"],
-                    how="left"
-                )
-            
-            Developed_Small = temp_Developed.filter(
-                ~pl.col("ENTITY_QID").is_in(Output_Standard_Index.select(pl.col("ENTITY_QID")))
-                ).join(
-                    Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"),
-                    on=["Date", "ENTITY_QID"],
-                    how="left"
-                )
-            
-            Small_Index = Emerging_Small.vstack(Developed_Small)
+                # Small Index #
+                Emerging_Small = temp_Emerging.filter((~pl.col("Internal_Number").is_in(TopPercentage_Securities.select(pl.col("Internal_Number")))) & (
+                    pl.col("Country") == country)).select(
+                    pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"])
+                ).with_columns(
+                    pl.lit("Small").alias("Size"),
+                    pl.lit(False).alias("Shadow_Company")).select(Small_Index.columns)
+                
+                Small_Index = Small_Index.vstack(Emerging_Small)
             
         # Following Reviews where Index is rebalanced
         else:
@@ -1891,11 +1903,8 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             ##Start the Size Classification##
             #################################
 
-            # Store the Screened Securities for Checks
-            Stored_Securities = Stored_Securities.vstack(temp_Emerging_Aggregate.filter(pl.col("Country") == Country_Plotting))
-
             # Filter only for Country_Plotting
-            temp_Emerging_Aggregate = temp_Emerging_Aggregate.filter(pl.col("Country") == Country_Plotting)
+            # temp_Emerging_Aggregate = temp_Emerging_Aggregate.filter(pl.col("Country") == Country_Plotting)
 
             # Emerging #
             for country in temp_Emerging_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
@@ -1909,7 +1918,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                     TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap,  Right_Limit, Left_Limit, "Emerging" ,writer)
 
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
+                    TopPercentage, TopPercentage_Securities = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
 
                     if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
@@ -1939,7 +1948,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                     TopPercentage, temp_Country = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Emerging", writer)
                     
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                    TopPercentage = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
+                    TopPercentage, TopPercentage_Securities = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
 
                     if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
@@ -1962,51 +1971,24 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                         pl.col("Date").first().alias("Date")
                     ).sort("Count", descending=True))
 
-            #################################
-            ###########Assign Size###########
-            #################################
+                #################################
+                ###########Assign Size###########
+                #################################
 
-            # Standard Index #
+                # Standard Index #
+                Standard_Index = Standard_Index.vstack(TopPercentage_Securities.select(Standard_Index.columns))
 
-            Emerging_Standard = temp_Emerging.filter(
-                    pl.col("ENTITY_QID").is_in(Output_Standard_Index.filter(pl.col("Date")==date).select(pl.col("ENTITY_QID")))
-                ).join(
-                            Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"),
-                            on=["Date", "ENTITY_QID"],
-                            how="left"
-                        )
-            
-            Developed_Standard = temp_Developed.filter(
-                    pl.col("ENTITY_QID").is_in(Output_Standard_Index.filter(pl.col("Date")==date).select(pl.col("ENTITY_QID")))
-                ).join(
-                            Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"),
-                            on=["Date", "ENTITY_QID"],
-                            how="left"
-                        )
-
-            Standard_Index = Standard_Index.vstack(Emerging_Standard).vstack(Developed_Standard)
-
-            # Small Index #
-            Emerging_Small = temp_Emerging.filter(
-                    ~pl.col("ENTITY_QID").is_in(Output_Standard_Index.filter(pl.col("Date")==date).select(pl.col("ENTITY_QID")))
-                ).join(
-                            Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"),
-                            on=["Date", "ENTITY_QID"],
-                            how="left"
-                        )
-            
-            Developed_Small = temp_Developed.filter(
-                    ~pl.col("ENTITY_QID").is_in(Output_Standard_Index.filter(pl.col("Date")==date).select(pl.col("ENTITY_QID")))
-                ).join(
-                            Output_Standard_Index.select("Date", "ENTITY_QID", "Shadow_Company"),
-                            on=["Date", "ENTITY_QID"],
-                            how="left"
-                        )
-            
-            Small_Index = Small_Index.vstack(Emerging_Small).vstack(Developed_Small)
+                # Small Index #
+                Emerging_Small = temp_Emerging.filter((~pl.col("Internal_Number").is_in(TopPercentage_Securities.select(pl.col("Internal_Number")))) & (
+                    pl.col("Country") == country)).select(
+                    pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"])
+                ).with_columns(
+                    pl.lit("Small").alias("Size"),
+                    pl.lit(False).alias("Shadow_Company")).select(Small_Index.columns)
+                
+                Small_Index = Small_Index.vstack(Emerging_Small)
 
     # Add Recap_GMSR_Frame to Excel
-    Stored_Securities.to_pandas().to_excel(writer, sheet_name="Historical_Screened_Securities", index=False)
     GMSR_Frame.to_pandas().to_excel(writer, sheet_name="GMSR_Historical", index=False)
 
 ### Standard Index ###
@@ -2135,6 +2117,7 @@ Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Project
 Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_Standard_{Percentage}_ETF_Version.csv")
 GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\GMSR_Frame_{Percentage}_ETF_Version.csv")
 EMS_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\EMS_Frame_{Percentage}_ETF_Version.csv")
+Screened_Securities.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Screened_Securities_{Percentage}_ETF_Version.csv")
 
 # Delete .PNG from main folder
 Main_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO"
