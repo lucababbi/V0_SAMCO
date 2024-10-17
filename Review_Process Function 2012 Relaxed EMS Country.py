@@ -56,28 +56,64 @@ ETF = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAM
 ##################################
 #########Index Continuity#########
 ##################################
-def Index_Continuity(temp_Country, TopPercentage_Securities, Segment: pl.Utf8, Country_Cutoff, Country_Cutoff_Lower, Country_Cutoff_Upper):
+def Index_Continuity(TopPercentage_Securities, TopPercentage, Segment: pl.Utf8, temp_Emerging, country, Standard_Index):
 
     if (Segment == "Emerging") & (len(TopPercentage_Securities.filter(pl.col("Shadow_Company") == False)) < 3):
 
         # Check if there are at least 3 NON-NEW Companies
-        if len(temp_Country.filter(pl.col("Size") != "NEW")) >= 3:
-            TopPercentage_Securities = temp_Country.filter(pl.col("Size") != "New").sort("Full_MCAP_USD_Cutoff", descending = True).head(3).with_columns(
-                                                    pl.lit("Standard").alias("Size"),
-                                                    pl.lit("Index Continuity").alias("Case"),
-                                                    pl.lit(False).alias("Shadow_Company")
-                                                )
+
+        # Take all Securities passing the Screens
+        temp_Emerging_Country = temp_Emerging.filter(pl.col("Country")==country).sort("Free_Float_MCAP_USD_Cutoff", descending=True)
+
+        Previous_Date = Standard_Index.filter(pl.col("Country") == country) \
+            .unique(subset=["Date"]) \
+            .select(pl.col("Date").max()) \
+            .to_numpy()[0, 0] 
+        
+        if isinstance(Previous_Date, np.datetime64):
+            Previous_Date = Previous_Date.astype('M8[D]').astype(datetime.date) 
+
+        # Securities to pump 1.5 Free_Float_MCAP_USD_Cutoff
+        temp_Emerging_Current = temp_Emerging_Country.filter(
+                    pl.col("Internal_Number").is_in(
+                        Standard_Index.filter(
+                            (pl.col("Country") == country) & (pl.col("Date") == Previous_Date)
+                        ).select(pl.col("Internal_Number"))
+                    )
+                ).with_columns(
+                    (pl.col("Free_Float_MCAP_USD_Cutoff") * 1.5).alias("Free_Float_MCAP_USD_Cutoff")
+                )
+
+        # All Securities not included in the Standard Index for the Previous Date       
+        temp_Emerging_Non_Current = temp_Emerging_Country.filter(~pl.col("Internal_Number").is_in(temp_Emerging_Current.select(pl.col("Internal_Number"))))
+
+        # Stack the Frames
+        temp_Emerging_Country = temp_Emerging_Current.vstack(temp_Emerging_Non_Current)
+
+        if len(temp_Emerging_Country) >= 3:
+            TopPercentage_Securities = temp_Emerging_Country.sort("Free_Float_MCAP_USD_Cutoff", descending = True).head(3)
+
+            # Fix the columns
+            TopPercentage_Securities = TopPercentage_Securities.select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country"])).with_columns(
+                pl.lit("Standard").alias("Size"),
+                pl.lit(False).alias("Shadow_Company")
+            )
+
+            TopPercentage = TopPercentage_Securities.group_by(["Date", "ENTITY_QID"]).agg([
+                pl.col("Country").first().alias("Country")
+            ]).with_columns([
+                pl.lit("Standard").alias("Size"),
+                pl.lit("Maintenance").alias("Case")
+            ])
+
         else:
-            TopPercentage_Securities = temp_Country.sort("Full_MCAP_USD_Cutoff", descending = True).head(3).with_columns(
-                                                    pl.lit("Standard").alias("Size"),
-                                                    pl.lit("Index Continuity").alias("Case"),
-                                                    pl.lit(False).alias("Shadow_Company")
-                                                )
+            TopPercentage_Securities = TopPercentage_Securities.head(0)
+
 
     elif (Segment == "Developed") & (len(TopPercentage_Securities) < 5):
         print("Here")
 
-    return TopPercentage_Securities
+    return TopPercentage_Securities, TopPercentage
 
 ##################################
 #########FOR Screening############
@@ -715,8 +751,15 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
         # Check that there are at least 3 Companies
         if len(temp_Emerging.filter(pl.col("Country") == country)) >= 3:
 
-            # Check for Index Continuity
-            TopPercentage_Securities = Index_Continuity(temp_Country, TopPercentage_Securities, "Emerging", Country_Cutoff_Shadow, Country_Cutoff_Lower_Shadow, Country_Cutoff_Upper_Shadow)
+            # Check number of Current Securities
+            if len(TopPercentage_Securities) < 3:
+                # Check for Index Continuity
+                TopPercentage_Securities = temp_Emerging.sort("Free_Float_MCAP_USD_Cutoff", descending=True).head(3).select(pl.col([
+                    "Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"
+                ])).with_columns(
+                    pl.lit("Standard").alias("Size"),
+                    pl.lit("Index_Creation").alias("Case")
+                )
         
         # In case there are not enough Companies
         else:
@@ -866,7 +909,7 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
         if len(temp_Emerging.filter(pl.col("Country") == country)) >= 3:
 
             # Check for Index Continuity
-            TopPercentage_Securities = Index_Continuity(temp_Country, TopPercentage_Securities, "Emerging", Country_Cutoff_Shadow, Country_Cutoff_Lower_Shadow, Country_Cutoff_Upper_Shadow)
+            TopPercentage_Securities, TopPercentage = Index_Continuity(TopPercentage_Securities, TopPercentage, "Emerging", temp_Emerging, country, Standard_Index)
 
         else:
 
@@ -1996,56 +2039,35 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
 # Implement to remove Shadow Company here # TODO
 Standard_Index = Standard_Index.filter(pl.col("Shadow_Company")==False)
 
-# Filter the Securities from Company Level
-Standard_Index_Security_Level = Emerging.select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Capfactor", "ISIN", "SEDOL"])).join(Standard_Index.filter(
-    pl.col("Country").is_in(Emerging.select(pl.col("Country").unique()))
-), on=["Date", "ENTITY_QID"], how="semi")
+# Add SEDOL/ISIN
+Standard_Index = Standard_Index.join(Emerging.select(pl.col(["Date", "Internal_Number", "ISIN", "SEDOL"])), on=["Date", "Internal_Number"], how="left")
 
 # Add information of CapFactor/Mcap_Units_Index_Currency
-Standard_Index_Security_Level = Standard_Index_Security_Level.join(pl.read_parquet(
+Standard_Index = Standard_Index.join(pl.read_parquet(
     r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\STXWAGV_Review.parquet").with_columns(
         pl.col("Date").cast(pl.Date),
         pl.col("Mcap_Units_Index_Currency").cast(pl.Float64)
     ), on=["Date", "Internal_Number"], how="left")
 
 # Calculate the Weights for each Date
-Standard_Index_Security_Level = Standard_Index_Security_Level.with_columns(
-    (pl.col("Mcap_Units_Index_Currency") / pl.col("Mcap_Units_Index_Currency").sum().over("Date")).alias("Weight")
-)
-### Standard Index ###
-# Filter the Securities from Company Level
-Standard_Index_Security_Level = Emerging.select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Capfactor", "ISIN", "SEDOL"])).join(Standard_Index.filter(
-    pl.col("Country").is_in(Emerging.select(pl.col("Country").unique()))
-), on=["Date", "ENTITY_QID"], how="semi")
-
-# Add information of CapFactor/Mcap_Units_Index_Currency
-Standard_Index_Security_Level = Standard_Index_Security_Level.join(pl.read_parquet(
-    r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\STXWAGV_Review.parquet").with_columns(
-        pl.col("Date").cast(pl.Date),
-        pl.col("Mcap_Units_Index_Currency").cast(pl.Float64)
-    ), on=["Date", "Internal_Number"], how="left")
-
-# Calculate the Weights for each Date
-Standard_Index_Security_Level = Standard_Index_Security_Level.with_columns(
+Standard_Index = Standard_Index.with_columns(
     (pl.col("Mcap_Units_Index_Currency") / pl.col("Mcap_Units_Index_Currency").sum().over("Date")).alias("Weight")
 )
 
 ### Small Index ###
 
-# Filter the Securities from Company Level
-Small_Index_Security_Level = Emerging.select(pl.col(["Date", "ENTITY_QID", "Country", "Internal_Number", "Capfactor", "ISIN", "SEDOL"])).join(Small_Index.filter(
-    pl.col("Country").is_in(Emerging.select(pl.col("Country").unique()))
-), on=["Date", "ENTITY_QID"], how="semi")
+# Add SEDOL/ISIN
+Small_Index = Small_Index.join(Emerging.select(pl.col(["Date", "Internal_Number", "ISIN", "SEDOL"])), on=["Date", "Internal_Number"], how="left")
 
 # Add information of CapFactor/Mcap_Units_Index_Currency
-Small_Index_Security_Level = Small_Index_Security_Level.join(pl.read_parquet(
+Small_Index = Small_Index.join(pl.read_parquet(
     r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\STXWAGV_Review.parquet").with_columns(
         pl.col("Date").cast(pl.Date),
         pl.col("Mcap_Units_Index_Currency").cast(pl.Float64)
     ), on=["Date", "Internal_Number"], how="left")
 
 # Remove China A / CCS
-Small_Index_Security_Level = Small_Index_Security_Level.filter(
+Small_Index = Small_Index.filter(
     ~(
         (pl.col("Country") == "CN") &
         (
@@ -2054,13 +2076,13 @@ Small_Index_Security_Level = Small_Index_Security_Level.filter(
         )))
 
 # Calculate the Weights for each Date
-Small_Index_Security_Level = Small_Index_Security_Level.with_columns(
+Small_Index = Small_Index.with_columns(
     (pl.col("Mcap_Units_Index_Currency") / pl.col("Mcap_Units_Index_Currency").sum().over("Date")).alias("Weight")
 )
 
 # Create a Recap
 Recap_Count = (
-    Small_Index_Security_Level
+    Small_Index
     .group_by(["Country", "Date"])  # Group by Country and Date
     .agg(pl.col("Internal_Number").count().alias("Sum_Components"))  # Count "Count" column and alias it
     .sort("Date")  # Ensure sorting by Date for proper column ordering in the pivot
@@ -2072,7 +2094,7 @@ Recap_Count = (
 )
 
 Recap_Weight = (
-    Small_Index_Security_Level
+    Small_Index
     .group_by(["Country", "Date"])  # Group by Country and Date
     .agg(pl.col("Weight").sum().alias("Weight_Components"))  # Count "Count" column and alias it
     .sort("Date")  # Ensure sorting by Date for proper column ordering in the pivot
@@ -2085,7 +2107,7 @@ Recap_Weight = (
 
 # Recap Standard Index
 Recap_Count_Standard = (
-    Standard_Index_Security_Level
+    Standard_Index
     .group_by(["Country", "Date"])  # Group by Country and Date
     .agg(pl.col("Internal_Number").count().alias("Sum_Components"))  # Count "Count" column and alias it
     .sort("Date")  # Ensure sorting by Date for proper column ordering in the pivot
@@ -2097,7 +2119,7 @@ Recap_Count_Standard = (
 )
 
 Recap_Weight_Standard = (
-    Standard_Index_Security_Level
+    Standard_Index
     .group_by(["Country", "Date"])  # Group by Country and Date
     .agg(pl.col("Weight").sum().alias("Weight_Components"))  # Count "Count" column and alias it
     .sort("Date")  # Ensure sorting by Date for proper column ordering in the pivot
@@ -2109,8 +2131,8 @@ Recap_Weight_Standard = (
 )
 
 # Store the Results
-Small_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Small_Index_Security_Level_{Percentage}_ETF_Version.csv")
-Standard_Index_Security_Level.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Standard_Index_Security_Level_{Percentage}_ETF_Version.csv")
+Small_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Small_Index_Security_Level_{Percentage}_ETF_Version.csv")
+Standard_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Standard_Index_Security_Level_{Percentage}_ETF_Version.csv")
 Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_{Percentage}_ETF_Version.csv")
 Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_{Percentage}_ETF_Version.csv")
 Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_Standard_{Percentage}_ETF_Version.csv")
