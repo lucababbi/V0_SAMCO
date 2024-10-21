@@ -58,9 +58,11 @@ ETF = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAM
 ##################################
 def Index_Continuity(TopPercentage_Securities, TopPercentage, Segment: pl.Utf8, temp_Emerging, country, Standard_Index):
 
+    # Check if there are at least 3 NON-NEW Companies
     if (Segment == "Emerging") & (len(TopPercentage_Securities.filter(pl.col("Shadow_Company") == False)) < 3):
 
-        # Check if there are at least 3 NON-NEW Companies
+        # Keep only Non-Shadow Securities
+        TopPercentage_Securities = TopPercentage_Securities.filter(pl.col("Shadow_Company") == False) 
 
         # Take all Securities passing the Screens
         temp_Emerging_Country = temp_Emerging.filter(pl.col("Country")==country).sort("Free_Float_MCAP_USD_Cutoff", descending=True)
@@ -73,7 +75,7 @@ def Index_Continuity(TopPercentage_Securities, TopPercentage, Segment: pl.Utf8, 
         if isinstance(Previous_Date, np.datetime64):
             Previous_Date = Previous_Date.astype('M8[D]').astype(datetime.date) 
 
-        # Securities to pump 1.5 Free_Float_MCAP_USD_Cutoff
+        # Securities to pump 1.5 Free_Float_MCAP_USD_Cutoff (excluding the Securities who are already )
         temp_Emerging_Current = temp_Emerging_Country.filter(
                     pl.col("Internal_Number").is_in(
                         Standard_Index.filter(
@@ -82,16 +84,26 @@ def Index_Continuity(TopPercentage_Securities, TopPercentage, Segment: pl.Utf8, 
                     )
                 ).with_columns(
                     (pl.col("Free_Float_MCAP_USD_Cutoff") * 1.5).alias("Free_Float_MCAP_USD_Cutoff")
-                )
+                ).filter(~pl.col("Internal_Number").is_in(TopPercentage_Securities.select(pl.col("Internal_Number"))))
 
         # All Securities not included in the Standard Index for the Previous Date       
-        temp_Emerging_Non_Current = temp_Emerging_Country.filter(~pl.col("Internal_Number").is_in(temp_Emerging_Current.select(pl.col("Internal_Number"))))
+        temp_Emerging_Non_Current = temp_Emerging_Country.filter(
+                    (~pl.col("Internal_Number").is_in(temp_Emerging_Current.select(pl.col("Internal_Number")))) &
+                    (~pl.col("Internal_Number").is_in(TopPercentage_Securities.select(pl.col("Internal_Number"))))
+                )
 
         # Stack the Frames
-        temp_Emerging_Country = temp_Emerging_Current.vstack(temp_Emerging_Non_Current)
+        temp_Emerging_Country = temp_Emerging_Current.vstack(temp_Emerging_Non_Current).with_columns(
+            pl.lit("Standard").alias("Size"),
+            pl.lit(False).alias("Shadow_Company")
+        )
 
-        if len(temp_Emerging_Country) >= 3:
-            TopPercentage_Securities = temp_Emerging_Country.sort("Free_Float_MCAP_USD_Cutoff", descending = True).head(3)
+        if len(temp_Emerging_Country) >= (3 - len(TopPercentage_Securities)):
+
+            # Keep the Securities needed to get the minimum number of Securities
+            temp_Emerging_Country = temp_Emerging_Country.sort("Free_Float_MCAP_USD_Cutoff", descending = True).head(3 - len(TopPercentage_Securities))
+
+            TopPercentage_Securities = TopPercentage_Securities.vstack(temp_Emerging_Country.select(TopPercentage_Securities.columns))
 
             # Fix the columns
             TopPercentage_Securities = TopPercentage_Securities.select(pl.col(["Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country"])).with_columns(
@@ -752,14 +764,26 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
         if len(temp_Emerging.filter(pl.col("Country") == country)) >= 3:
 
             # Check number of Current Securities
-            if len(TopPercentage_Securities) < 3:
+            if len(TopPercentage_Securities.filter(pl.col("Shadow_Company") == False)) < 3:
+                # Keep only Non-Shadow Securities
+                TopPercentage_Securities = TopPercentage_Securities.filter(pl.col("Shadow_Company") == False).with_columns(
+                    pl.lit("Standard").alias("Size"),
+                    pl.lit("Index_Creation").alias("Case")
+                    )
+
                 # Check for Index Continuity
-                TopPercentage_Securities = temp_Emerging.sort("Free_Float_MCAP_USD_Cutoff", descending=True).head(3).select(pl.col([
+                TopPercentage_Securities_Addition = temp_Emerging.sort("Free_Float_MCAP_USD_Cutoff", descending=True).select(pl.col([
                     "Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"
                 ])).with_columns(
                     pl.lit("Standard").alias("Size"),
-                    pl.lit("Index_Creation").alias("Case")
-                )
+                    pl.lit("Index_Creation").alias("Case"),
+                    pl.lit(False).alias("Shadow_Company")
+                ).filter(~pl.col("Internal_Number").is_in(TopPercentage_Securities.select(pl.col("Internal_Number")))).sort("Free_Float_MCAP_USD_Cutoff",
+                                                                                                                            descending=True)
+
+                # Stack the two Frames
+                TopPercentage_Securities = TopPercentage_Securities.vstack(TopPercentage_Securities_Addition.head(3 - len(TopPercentage_Securities))
+                                                                           .select(TopPercentage_Securities.columns)) 
         
         # In case there are not enough Companies
         else:
@@ -2131,15 +2155,15 @@ Recap_Weight_Standard = (
 )
 
 # Store the Results
-Small_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Small_Index_Security_Level_{Percentage}_ETF_Version.csv")
-Standard_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Standard_Index_Security_Level_{Percentage}_ETF_Version.csv")
-Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_{Percentage}_ETF_Version.csv")
-Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_{Percentage}_ETF_Version.csv")
-Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_Standard_{Percentage}_ETF_Version.csv")
-Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_Standard_{Percentage}_ETF_Version.csv")
-GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\GMSR_Frame_{Percentage}_ETF_Version.csv")
-EMS_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\EMS_Frame_{Percentage}_ETF_Version.csv")
-Screened_Securities.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Screened_Securities_{Percentage}_ETF_Version.csv")
+Small_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Small_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
+Standard_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Standard_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
+Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
+Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
+Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_Standard_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
+Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_Standard_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
+GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\GMSR_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
+EMS_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\EMS_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
+Screened_Securities.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Screened_Securities_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
 
 # Delete .PNG from main folder
 Main_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO"

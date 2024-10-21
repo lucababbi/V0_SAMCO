@@ -10,7 +10,7 @@ CapFactor = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SA
 
 # Create the iStudio input
 # Small_Index = pd.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level.csv", parse_dates=["Date"])
-Small_Index = pd.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard_Index_Security_Level_0.85_ETF_Version.csv", parse_dates=["Date"]).query("Date >= '2019-03-18'")
+Small_Index = pd.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Standard_Index_Security_Level_0.85_ETF_Version_Coverage_Adjustment_True.csv", parse_dates=["Date"]).query("Date >= '2019-03-18'")
 
 # Filter for needed columns
 Frame = Small_Index[["Internal_Number", "SEDOL", "ISIN", "Date"]]
