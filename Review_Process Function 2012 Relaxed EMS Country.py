@@ -18,7 +18,7 @@ Percentage = 0.85
 Left_Limit = Percentage - 0.05
 Right_Limit = Percentage +  0.05
 Threshold_NEW = 0.15
-Threshold_OLD = 0.10
+Threshold_OLD = 0.05
 FOR_FF_Screen = 0.15
 Screen_TOR = True
 
@@ -696,7 +696,7 @@ def Fill_Chairs(temp_Country, Companies_To_Fill, Country_Cutoff, Country_Cutoff_
 ##################################
 ##Minimum FreeFloatCountry Level##
 ##################################
-def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, Segment: pl.Utf8):
+def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, Segment: pl.Utf8, Original_MCAP_Emerging):
     # Check if last Company Full_MCAP_USD_Cutoff_Company is in between Upper and Lower GMSR
 
     # No Buffer for the Starting Date
@@ -923,18 +923,6 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
                 .otherwise(pl.col("Free_Float_MCAP_USD_Cutoff") < (Country_Cutoff * 0.5))  # Condition for True case
                 .alias("Update_Shadow_Company")  # Name of the new column
             ).drop("Shadow_Company").rename({"Update_Shadow_Company": "Shadow_Company"})
-        
-        # Rule for moving Standard Securities into Small Index #
-
-        # Check what was previously Standard (and Non-Shadow)
-        TopPercentage_Securities = TopPercentage_Securities.with_columns(
-                pl.col("Internal_Number").is_in(
-                    Standard_Index.filter((pl.col("Date") == Previous_Date) & (pl.col("Country") == country) & (pl.col("Shadow_Company") == False)).select(pl.col("Internal_Number"))
-                ).alias("Previously_Standard")
-            )
-        
-        # Filter out New_Shadow which where Standard before
-        TopPercentage_Securities = TopPercentage_Securities.filter(~((pl.col("Shadow_Company") == True) & (pl.col("Previously_Standard") == True))).drop("Previously_Standard")
 
         # Variables Shadow for Index Continuity
         Country_Cutoff_Shadow = Country_Cutoff / 2
@@ -962,6 +950,36 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
             pl.lit("Buffer").alias("Case"),
             pl.lit("Standard").alias("Size")
         )
+
+        # Rule for moving Standard Securities into Small Index #
+
+        # Check what was previously Standard (and Non-Shadow) - Company Level
+        TopPercentage = TopPercentage.with_columns(
+                pl.col("ENTITY_QID").is_in(
+                    Standard_Index.filter((pl.col("Date") == Previous_Date) & (pl.col("Country") == country) & (pl.col("Shadow_Company") == False)).select(pl.col("ENTITY_QID"))
+                ).alias("Previously_Standard")
+            )
+        
+        # In case Index Continuity kicked in
+        if "Full_MCAP_USD_Cutoff_Company" not in TopPercentage.columns:
+            if Segment == "Emerging":
+                TopPercentage = TopPercentage.join(Original_MCAP_Emerging, on="ENTITY_QID", how="left").join(TopPercentage_Securities.select(pl.col(["ENTITY_QID", "Shadow_Company"])), on=["ENTITY_QID"],
+                                                                                                             how="left")
+            else:
+                TopPercentage = TopPercentage.join(Original_MCAP_Developed, on="ENTITY_QID", how="left").join(TopPercentage_Securities.select(pl.col(["ENTITY_QID", "Shadow_Company"])), on=["ENTITY_QID"],
+                                                                                                             how="left")
+        
+        # Filter out New_Shadow which where Standard before
+        TopPercentage = TopPercentage.filter(
+                                    ~((pl.col("Shadow_Company") == True) & 
+                                    (pl.col("Previously_Standard") == True) & 
+                                    (pl.col("Full_MCAP_USD_Cutoff_Company") >= Country_Cutoff_Lower) & 
+                                    (pl.col("Full_MCAP_USD_Cutoff_Company") <= Country_Cutoff))
+                                ).drop(["Previously_Standard", "Shadow_Company"])
+
+        
+        # Convert from Company level to Security level
+        TopPercentage_Securities = TopPercentage_Securities.filter(pl.col("ENTITY_QID").is_in(TopPercentage.select(pl.col("ENTITY_QID"))))
 
     # Return the Frame
     return TopPercentage, TopPercentage_Securities
@@ -1109,6 +1127,11 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
             Country_Adjustment = Percentage / 0.935
             Left_Limit = Country_Adjustment - (0.05 / 0.935)
             Right_Limit = Country_Adjustment + (0.05 / 0.935)
+
+        elif country == "PL":
+            Country_Adjustment = Percentage
+            Left_Limit = 0.80
+            Right_Limit = 0.90
 
         if Right_Limit > 1: Right_Limit = 1 # Adjust it in case of being higher than 100%
     else:
@@ -1791,7 +1814,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                 TopPercentage, temp_Country = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Emerging", writer)
 
                 # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                TopPercentage, TopPercentage_Securities = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
+                TopPercentage, TopPercentage_Securities = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging", Original_MCAP_Emerging)
 
                 # Stack to Output_Standard_Index
                 Output_Standard_Index = Output_Standard_Index.vstack(TopPercentage.select(Output_Standard_Index.columns))
@@ -1988,16 +2011,22 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             # Emerging #
             for country in temp_Emerging_Aggregate.select(pl.col("Country")).unique().sort("Country").to_series():
 
+                # List of Unique Dates
+                Dates_List = Pivot_TOR.index.to_list()
+
+                IDX_Current = Dates_List.index(date.strftime("%Y-%m-%d"))
+                Previous_Date = datetime.datetime.strptime(Dates_List[max(0, IDX_Current - 1)], "%Y-%m-%d").date()
+
                 Lower_GMSR = GMSR_Frame.select(["GMSR_Emerging_Lower", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
                 Upper_GMSR = GMSR_Frame.select(["GMSR_Emerging_Upper", "Date"]).filter(pl.col("Date") == date).to_numpy()[0][0]
 
                 # Check if there is already a previous Index creation for the current country
-                if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") < date))) > 0:
+                if len(Output_Count_Standard_Index.filter((pl.col("Country") == country) & (pl.col("Date") == Previous_Date))) > 0:
 
                     TopPercentage, temp_Country = Index_Rebalancing_Box(temp_Emerging_Aggregate, SW_ACALLCAP, Output_Count_Standard_Index, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap,  Right_Limit, Left_Limit, "Emerging" ,writer)
 
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                    TopPercentage, TopPercentage_Securities = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
+                    TopPercentage, TopPercentage_Securities = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging", Original_MCAP_Emerging)
 
                     if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
@@ -2027,7 +2056,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                     TopPercentage, temp_Country = Index_Creation_Box(temp_Emerging_Aggregate, Lower_GMSR, Upper_GMSR, country, date, Excel_Recap, Percentage, Right_Limit, Left_Limit, "Emerging", writer)
                     
                     # Apply the check on Minimum_FreeFloat_MCAP_USD_Cutoff
-                    TopPercentage, TopPercentage_Securities = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging")
+                    TopPercentage, TopPercentage_Securities = Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMSR, date, country, "Emerging", Original_MCAP_Emerging)
 
                     if Excel_Recap_Rebalancing == True and country == Country_Plotting:
 
@@ -2167,15 +2196,15 @@ Recap_Weight_Standard = (
 )
 
 # Store the Results
-Small_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Small_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
-Standard_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Standard_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
-Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
-Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
-Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_Standard_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
-Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_Standard_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
-GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\GMSR_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
-EMS_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\EMS_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
-Screened_Securities.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Screened_Securities_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}.csv")
+Small_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Small_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
+Standard_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Standard_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
+Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
+Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
+Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_Standard_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
+Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_Standard_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
+GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\GMSR_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
+EMS_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\EMS_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
+Screened_Securities.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Screened_Securities_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
 
 # Delete .PNG from main folder
 Main_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO"
