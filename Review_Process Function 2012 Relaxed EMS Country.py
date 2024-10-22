@@ -772,7 +772,7 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
                     )
 
                 # Check for Index Continuity
-                TopPercentage_Securities_Addition = temp_Emerging.sort("Free_Float_MCAP_USD_Cutoff", descending=True).select(pl.col([
+                TopPercentage_Securities_Addition = temp_Emerging.filter(pl.col("Country") == country).sort("Free_Float_MCAP_USD_Cutoff", descending=True).select(pl.col([
                     "Date", "Internal_Number", "Instrument_Name", "ENTITY_QID", "Country", "Free_Float_MCAP_USD_Cutoff", "Full_MCAP_USD_Cutoff"
                 ])).with_columns(
                     pl.lit("Standard").alias("Size"),
@@ -924,6 +924,18 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
                 .alias("Update_Shadow_Company")  # Name of the new column
             ).drop("Shadow_Company").rename({"Update_Shadow_Company": "Shadow_Company"})
         
+        # Rule for moving Standard Securities into Small Index #
+
+        # Check what was previously Standard (and Non-Shadow)
+        TopPercentage_Securities = TopPercentage_Securities.with_columns(
+                pl.col("Internal_Number").is_in(
+                    Standard_Index.filter((pl.col("Date") == Previous_Date) & (pl.col("Country") == country) & (pl.col("Shadow_Company") == False)).select(pl.col("Internal_Number"))
+                ).alias("Previously_Standard")
+            )
+        
+        # Filter out New_Shadow which where Standard before
+        TopPercentage_Securities = TopPercentage_Securities.filter(~((pl.col("Shadow_Company") == True) & (pl.col("Previously_Standard") == True))).drop("Previously_Standard")
+
         # Variables Shadow for Index Continuity
         Country_Cutoff_Shadow = Country_Cutoff / 2
         Country_Cutoff_Upper_Shadow = Country_Cutoff_Shadow * 1.5
