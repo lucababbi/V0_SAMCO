@@ -145,11 +145,11 @@ def get_last_business_day_of_month(date):
 
     return EOM
 
-idx = ["SWEACGV"]
+idx = ["SWEL"]
 opclo = "close"
 
 # Create DataFrame with Review and Cutoff dates
-Review_Date = pd.read_csv(r"C:\Users\et246\Desktop\V0_SAMCO\Dates\Review_Date-QUARTERLY.csv", parse_dates=["Review", "Cutoff"]).tail(1)
+Review_Date = pd.read_csv(r"C:\Users\et246\Desktop\V0_SAMCO\Dates\Review_Date-QUARTERLY.csv", parse_dates=["Review", "Cutoff"]).tail(2)
 Output = pd.DataFrame()
 
 for index in idx:
