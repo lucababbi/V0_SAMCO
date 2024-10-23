@@ -166,5 +166,5 @@ for index in idx:
     #     Output = Output.astype(str)
     #     Output = pl.from_pandas(Output)
 
-    Output.to_parquet(rf"C:\Users\et246\Desktop\V0_SAMCO\Universe\{index}_SEP_2024.parquet", engine="fastparquet")
+    Output.to_parquet(rf"C:\Users\et246\Desktop\V0_SAMCO\Universe\{index}_SEP_2024.parquet", engine="pyarrow", use_deprecated_int96_timestamps=True)
     Output = pd.DataFrame()
