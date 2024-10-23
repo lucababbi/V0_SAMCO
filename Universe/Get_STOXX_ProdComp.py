@@ -13,6 +13,7 @@ import sys
 sys.path.append(r"C:\Users\et246\Desktop\V0_SAMCO\STOXX")
 import stoxx
 import polars as pl
+from polars import Series as PySeries  # Polars handles Series creation
 
 def get_prod_comp(symbol, date_i, oc):
     """" Reads index composition from STOXX composition folder/ SID/ STOXX website (priority in that order) and returns dataframe with composition
@@ -144,11 +145,11 @@ def get_last_business_day_of_month(date):
 
     return EOM
 
-idx = ["STXWAGV"]
+idx = ["SWEACGV"]
 opclo = "close"
 
 # Create DataFrame with Review and Cutoff dates
-Review_Date = pd.read_csv(r"C:\Users\et246\Desktop\V0_SAMCO\Dates\Review_Date-QUARTERLY.csv", parse_dates=["Review", "Cutoff"])
+Review_Date = pd.read_csv(r"C:\Users\et246\Desktop\V0_SAMCO\Dates\Review_Date-QUARTERLY.csv", parse_dates=["Review", "Cutoff"]).tail(1)
 Output = pd.DataFrame()
 
 for index in idx:
@@ -159,13 +160,11 @@ for index in idx:
         Output = pd.concat((Output, cons))
         print(Output)
 
-    try:
-        Output = pl.from_pandas(Output)
-    except:
-        Output = Output.astype(str)
-        Output = pl.from_pandas(Output)
+    # try:
+    #     Output = pl.from_pandas(Output)
+    # except:
+    #     Output = Output.astype(str)
+    #     Output = pl.from_pandas(Output)
 
-    Output = Output.select(pl.col(["Date", "Internal_Number", "Capfactor"]))
-
-    Output.write_parquet(rf"C:\Users\et246\Desktop\V0_SAMCO\Universe\{index}_Capfactor_Extended.parquet")
+    Output.to_parquet(rf"C:\Users\et246\Desktop\V0_SAMCO\Universe\{index}_SEP_2024.parquet", engine="fastparquet")
     Output = pd.DataFrame()
