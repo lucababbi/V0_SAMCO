@@ -186,7 +186,7 @@ def FOR_Sreening(Frame: pl.DataFrame, Full_Frame: pl.DataFrame, Pivot_TOR, Stand
                     Previous_Count = Investable_Index.height - 1
 
                 # Find the Country_Cutoff ["Full_MCAP_USD_Cutoff_Company"]
-                Country_Cutoff = Investable_Index.sort("Full_MCAP_USD_Cutoff_Company", descending=True).row(Previous_Count)[Investable_Index.columns.index("Full_MCAP_USD_Cutoff_Company")] / 2 * 1.5
+                Country_Cutoff = Investable_Index.sort("Full_MCAP_USD_Cutoff_Company", descending=True).row(Previous_Count)[Investable_Index.columns.index("Full_MCAP_USD_Cutoff_Company")] / 2 * 1.8
 
                 # Check if the Failing_Securities have a Free_Float_MCAP_USD_Cutoff >= than the Country_Cutoff
                 Failing_Securities = Failing_Securities.with_columns(
@@ -2195,16 +2195,19 @@ Recap_Weight_Standard = (
     )
 )
 
+# Get current date formatted as YYYYMMDD_HHMMSS
+current_datetime = datetime.today().strftime('%Y%m%d')
+
 # Store the Results
-Small_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Small_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
-Standard_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Standard_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
-Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
-Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
-Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_Standard_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
-Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_Standard_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
-GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\GMSR_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
-EMS_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\EMS_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
-Screened_Securities.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Screened_Securities_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_PL.csv")
+Small_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Small_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
+Standard_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Standard_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
+Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
+Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
+Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_Standard_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
+Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_Standard_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
+GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\GMSR_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
+EMS_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\EMS_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
+Screened_Securities.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Screened_Securities_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
 
 # Delete .PNG from main folder
 Main_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO"
