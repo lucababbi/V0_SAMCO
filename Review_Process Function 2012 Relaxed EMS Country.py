@@ -2196,6 +2196,7 @@ Recap_Weight_Standard = (
 )
 
 # Get current date formatted as YYYYMMDD_HHMMSS
+from datetime import datetime
 current_datetime = datetime.today().strftime('%Y%m%d')
 
 # Store the Results
