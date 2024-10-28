@@ -53,7 +53,7 @@ def fetch_batch_composition(batch_ids, Review_Date, Date_Download, server_type="
     
     return composition
 
-batch_ids = [20911]
+batch_ids = [20931]
 
 # Get composition by Review Date
 Date_Download = "Review"
@@ -83,3 +83,4 @@ TwoWayTurnover = Composition_T.groupby("next_trading_day_Prev_Business_Day")["AB
 TwoWayTurnover = TwoWayTurnover.reset_index()
 TwoWayTurnover = TwoWayTurnover.rename(columns={"next_trading_day_Prev_Business_Day": "Review_Date", "ABS_Weight_Difference": "Two_Ways_Turnover"})
 TwoWayTurnover.to_clipboard()
+print(TwoWayTurnover)

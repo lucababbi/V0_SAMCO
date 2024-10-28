@@ -166,5 +166,6 @@ for index in idx:
     #     Output = Output.astype(str)
     #     Output = pl.from_pandas(Output)
 
-    Output[["Date", "Internal_Number", "Instrument_Name","Mcap_Units_Index_Currency"]].to_parquet(rf"C:\Users\et246\Desktop\V0_SAMCO\Universe\{index}_SEP_2024.parquet", engine="pyarrow", use_deprecated_int96_timestamps=True)
+    Output[["Date", "Internal_Number", "Capfactor","Mcap_Units_Index_Currency"]].to_csv(r"C:\Users\et246\Desktop\V0_SAMCO\Universe\Capfactor_SWACALLCAP_2024.csv")
+    Output[["Date", "Internal_Number", "Capfactor","Mcap_Units_Index_Currency"]].to_parquet(rf"C:\Users\et246\Desktop\V0_SAMCO\Universe\{index}_SEP_2024.parquet", engine="pyarrow", use_deprecated_int96_timestamps=True)
     Output = pd.DataFrame()
