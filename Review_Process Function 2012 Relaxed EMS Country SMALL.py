@@ -55,6 +55,67 @@ Output_File = rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\
 # ETFs SPDR-iShares
 ETF = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\ETFs_STANDARD-SMALL.csv", separator=";")
 
+# Standard Index Output
+Standard_Index_Output_Code = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard\Standard_Index_Security_Level_Shadows_0.85_True_20241028.csv").with_columns(
+    pl.col("Date").cast(pl.Date)
+)
+
+##################################
+##########China A Removal#########
+##################################
+def China_A_Small_Removal(TopPercentage_Securities, Standard_Index_Output_Code, date):
+
+    # Slash the Standard_Index_Output_Code
+    temp_Standard_Index = Standard_Index_Output_Code.filter((pl.col("Date") == date) & (pl.col("Country") == "CN"))
+
+    # Keep only those Securities that are part of the Standard_Index
+    TopPercentage_Securities = TopPercentage_Securities.with_columns(
+        pl.col("Internal_Number").is_in(temp_Standard_Index.select(pl.col("Internal_Number"))).alias("CN_Standard")
+    )
+
+    if datetime.date(2019, 3, 18) <= date < datetime.date(2019, 9, 23):
+        TopPercentage_Securities = TopPercentage_Securities.filter(
+            ~(
+                (pl.col("Country") == "CN") & 
+                (
+                    pl.col("Instrument_Name").str.contains("'A'") | 
+                    pl.col("Instrument_Name").str.contains("(CCS)")
+                ) & (pl.col("CN_Standard") == False)
+            )
+        )
+
+    elif date < datetime.date(2022, 9, 19):
+        TopPercentage_Securities = TopPercentage_Securities.filter(
+            ~(
+                (pl.col("Country") == "CN") & 
+                (
+                    pl.col("Instrument_Name").str.contains("'A'") | 
+                    pl.col("Instrument_Name").str.contains("(CCS)")
+                ) & (pl.col("CN_Standard") == False)
+            )
+        )
+
+    else:
+
+        # Add Exchange Information from Emerging Frame
+        TopPercentage_Securities = TopPercentage_Securities.join(Emerging.select(pl.col(["Date", "Internal_Number", "Exchange"])), on=["Date", "Internal_Number"], how="left")
+
+        TopPercentage_Securities = TopPercentage_Securities.filter(
+            ~(
+                ((pl.col("Exchange") == 'Stock Exchange of Hong Kong - SSE Securities') | 
+                (pl.col("Exchange") == 'Stock Exchange of Hong Kong - SZSE Securities')) & 
+                (pl.col("Country") == "CN") & (pl.col("CN_Standard") == False)
+            )
+        )
+
+    try:
+        # Drop the CN_Standard column
+        TopPercentage_Securities = TopPercentage_Securities.drop(["CN_Standard", "Exchange"])
+    except:
+        TopPercentage_Securities = TopPercentage_Securities.drop(["CN_Standard"])
+
+    return TopPercentage_Securities
+
 ##################################
 #########Index Continuity#########
 ##################################
@@ -741,6 +802,10 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
                                         pl.lit("All_Cap").alias("Size")
                                     )
         
+        # Apply the China A Securities Removal from Standard_Output_Code
+        if country == "CN":
+            TopPercentage_Securities = China_A_Small_Removal(TopPercentage_Securities, Standard_Index_Output_Code, date) 
+
         # Check that there are at least 3 Companies
         if len(temp_Emerging.filter(pl.col("Country") == country)) >= 3:
 
@@ -946,6 +1011,10 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
                                     .alias("Update_Shadow_Company")
                                 ).drop("Shadow_Company", "ELIGIBLE").rename({"Update_Shadow_Company": "Shadow_Company"})
         
+        # Apply the China A Securities Removal from Standard_Output_Code
+        if country == "CN":
+            TopPercentage_Securities = China_A_Small_Removal(TopPercentage_Securities, Standard_Index_Output_Code, date) 
+
         # Adapt TopPercentage
         TopPercentage = TopPercentage_Securities.group_by(["Date", "ENTITY_QID"]).agg([
                 pl.col("Country").first().alias("Country")
@@ -1944,8 +2013,28 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
                                                     )
                                                     .head(1)["Rank"]
                                                     .to_numpy()[0]
-                                                ]
-            })
+                                                ]})
+                
+            elif CumWeight_Cutoff_Rank > (GMSR_Lower_Buffer):
+                New_Data = pl.DataFrame({
+                                        "Date": [date],
+                                        "GMSR_Developed": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0]],
+                                        "GMSR_Developed_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Upper_Limit],
+                                        "GMSR_Developed_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] * Lower_Limit], 
+                                        "GMSR_Emerging": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2],
+                                        "GMSR_Emerging_Upper": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Upper_Limit],
+                                        "GMSR_Emerging_Lower": [temp_Developed_Aggregate.filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer).head(1)["Full_MCAP_USD_Cutoff_Company"].to_numpy()[0] / 2 * Lower_Limit],
+                                        "Rank": [
+                                                    temp_Developed_Aggregate
+                                                    .filter(pl.col("Full_MCAP_USD_Cutoff_Company") == 
+                                                        temp_Developed_Aggregate
+                                                        .filter(pl.col("CumWeight_Cutoff") > GMSR_Upper_Buffer)
+                                                        .head(1)["Full_MCAP_USD_Cutoff_Company"]
+                                                        .to_numpy()[0]
+                                                    )
+                                                    .head(1)["Rank"]
+                                                    .to_numpy()[0]
+                                                ]})
                     
             # Drop the Rank column
             temp_Developed_Aggregate = temp_Developed_Aggregate.drop("Rank")
@@ -2151,7 +2240,7 @@ from datetime import datetime
 current_datetime = datetime.today().strftime('%Y%m%d')
 
 # Store the Results
-Small_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\All_Country\AllCap_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
+Standard_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\All_Country\AllCap_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
 Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\All_Country\Recap_Count_AllCap_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
 Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\All_Country\Recap_Weight_AllCap_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
 GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\All_Country\GMSR_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
