@@ -2102,6 +2102,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
 ### Standard Index ###
 
 # Implement to remove Shadow Company here # TODO
+Standard_Index_Shadows = Standard_Index
 Standard_Index = Standard_Index.filter(pl.col("Shadow_Company")==False)
 
 # Add SEDOL/ISIN
@@ -2200,15 +2201,12 @@ from datetime import datetime
 current_datetime = datetime.today().strftime('%Y%m%d')
 
 # Store the Results
-Small_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Small_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
-Standard_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Standard_Index_Security_Level_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
-Recap_Count.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
-Recap_Weight.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
-Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Count_Standard_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
-Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Recap_Weight_Standard_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
-GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\GMSR_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
-EMS_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\EMS_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
-Screened_Securities.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Country\Screened_Securities_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
+Standard_Index.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard\Standard_Index_Security_Level_{Percentage}_{Coverage_Adjustment}_" + current_datetime + ".csv")
+Standard_Index_Shadows.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard\Standard_Index_Security_Level_Shadows_{Percentage}_{Coverage_Adjustment}_" + current_datetime + ".csv")
+Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard\Recap_Count_Standard_{Percentage}_{Coverage_Adjustment}_" + current_datetime + ".csv")
+Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard\Recap_Weight_Standard_{Percentage}_{Coverage_Adjustment}_" + current_datetime + ".csv")
+GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard\GMSR_Frame_{Percentage}_{Coverage_Adjustment}_" + current_datetime + ".csv")
+EMS_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard\EMS_Frame_{Percentage}_{Coverage_Adjustment}_" + current_datetime + ".csv")
 
 # Delete .PNG from main folder
 Main_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO"
