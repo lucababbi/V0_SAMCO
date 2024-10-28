@@ -645,12 +645,12 @@ def Fill_Chairs(temp_Country, Companies_To_Fill, Country_Cutoff, Country_Cutoff_
         ((pl.col("Size") == "STANDARD") | (pl.col("Size") == "NEW"))
     )
     
-    if len(priority1) == Companies_To_Fill:
-        return priority1.with_columns(
+    if len(priority1) >= Companies_To_Fill:
+        return priority1.head(Companies_To_Fill).with_columns(
             pl.col("Shadow_Company").fill_null(True)
         )
 
-    # Second priority: Add priority 2 to priority 1
+    # Second priority: Add priority 2 to priority 1s
     priority2 = temp_Country.filter(
         (pl.col("Full_MCAP_USD_Cutoff_Company") >= Country_Cutoff_Upper) & 
         ((pl.col("Size") == "SMALL"))
@@ -1934,7 +1934,7 @@ with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
             Previous_Date = datetime.datetime.strptime(Dates_List[max(0, IDX_Current - 1)], "%Y-%m-%d").date()
 
             # Retrieve the Previous Rank in the GMSR Frame
-            Previous_Rank_GMSR = GMSR_Frame.filter(pl.col("Date") <= GMSR_MSCI).select(pl.col("Rank")).to_numpy()[0][0]
+            Previous_Rank_GMSR = GMSR_Frame.filter(pl.col("Date") == Previous_Date).select(pl.col("Rank")).to_numpy()[0][0]
 
             # CumWeight_Cutoff of the Previous Rank_GMSR
             CumWeight_Cutoff_Rank = temp_Developed_Aggregate.filter(pl.col("Rank") == Previous_Rank_GMSR).select(pl.col("CumWeight_Cutoff")).to_numpy()[0][0]
