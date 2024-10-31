@@ -4,13 +4,13 @@ from datetime import datetime
 import os
 
 # Capfactor from SWACALLCAP
-CapFactor = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Capfactor_SWACALLCAP.parquet").with_columns(
+CapFactor = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Capfactor_SWACALLCAP.csv").with_columns(
     pl.col("Date").cast(pl.Date),
 ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).to_pandas()
 
 # Create the iStudio input
 # Small_Index = pd.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level.csv", parse_dates=["Date"])
-Small_Index = pd.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small\Small_Index_Security_Level_ETF_Version_Coverage_Adjustment20241028.csv", parse_dates=["Date"]).query("Date >= '2019-03-18'")
+Small_Index = pd.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small\Small_Index_Security_Level_ETF_Version_Coverage_Adjustment20241031.csv", parse_dates=["Date"]).query("Date >= '2019-03-18'")
 
 # Filter for needed columns
 Frame = Small_Index[["Internal_Number", "SEDOL", "ISIN", "Date"]]
@@ -41,3 +41,4 @@ Frame.to_csv(
         lineterminator="\n", 
         sep=";"
     )
+

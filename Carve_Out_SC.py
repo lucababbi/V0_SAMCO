@@ -1,11 +1,11 @@
 import polars as pl
 import datetime
 
-Standard_Index = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard\Standard_Index_Security_Level_Shadows_0.85_True_20241028.csv").with_columns(
+Standard_Index = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Standard\Standard_Index_Security_Level_Shadows_0.85_True_20241030.csv").with_columns(
     pl.col("Date").cast(pl.Date)
 )
 
-All_Cap = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\All_Country\AllCap_Index_Security_Level_0.995_ETF_Version_Coverage_Adjustment_True_20241028.csv").with_columns(
+All_Cap = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\All_Country\AllCap_Index_Security_Level_0.995_ETF_Version_Coverage_Adjustment_True_20241030.csv").with_columns(
     pl.col("Date").cast(pl.Date)
 )
 
