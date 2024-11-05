@@ -3,6 +3,11 @@ import pandas as pd
 from datetime import datetime
 import os
 
+CN_Target_Percentage = float(os.getenv("CN_Target_Percentage"))
+current_datetime = os.getenv("current_datetime")
+GMSR_Upper_Buffer = float(os.getenv("GMSR_Upper_Buffer"))
+GMSR_Lower_Buffer = float(os.getenv("GMSR_Lower_Buffer"))
+
 # Capfactor from SWACALLCAP
 CapFactor = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Capfactor_SWACALLCAP.csv").with_columns(
     pl.col("Date").cast(pl.Date),
@@ -10,7 +15,7 @@ CapFactor = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\
 
 # Create the iStudio input
 # Small_Index = pd.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small_Index_Security_Level.csv", parse_dates=["Date"])
-Small_Index = pd.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small\Small_Index_Security_Level_ETF_Version_Coverage_Adjustment20241031.csv", parse_dates=["Date"]).query("Date >= '2019-03-18'")
+Small_Index = pd.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\Small_Index_Security_Level_CNTarget_{CN_Target_Percentage}_{GMSR_Upper_Buffer}_{GMSR_Lower_Buffer}_" + current_datetime + ".csv", parse_dates=["Date"]).query("Date >= '2019-03-18'")
 
 # Filter for needed columns
 Frame = Small_Index[["Internal_Number", "SEDOL", "ISIN", "Date"]]
@@ -34,11 +39,10 @@ current_datetime = datetime.today().strftime('%Y%m%d')
 # Store the .CSV with version and timestamp
 Frame.to_csv(
         os.path.join(
-            r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Small", 
+            r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests", 
             current_datetime + "_SMALL_ETF.csv"
         ), 
         index=False, 
         lineterminator="\n", 
         sep=";"
     )
-
