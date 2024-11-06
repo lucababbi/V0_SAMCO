@@ -23,8 +23,8 @@ if __name__ == '__main__':
 
     # Define Global Variables
     os.environ["CN_Target_Percentage"] = str(0.90)
-    os.environ["GMSR_Upper_Buffer"] = str(0.9925)
-    os.environ["GMSR_Lower_Buffer"] = str(0.9950)
+    os.environ["GMSR_Upper_Buffer"] = str(0.993)
+    os.environ["GMSR_Lower_Buffer"] = str(0.9955)
     os.environ["current_datetime"] = datetime.today().strftime('%Y%m%d')
 
     # Create and start Process_1
