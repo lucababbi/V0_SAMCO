@@ -64,38 +64,6 @@ Output_File = rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\
 ETF = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\ETFs_STANDARD-SMALL.csv", separator=";")
 
 ##################################
-##########Link China A############
-##################################
-def Link_China_A(temp_Emerging, date, Chinese_Mapping):
-
-    if  datetime.date(2019,3,18) <= date < datetime.date(2019,9,23):
-        Chinese_Securities = temp_Emerging.filter(
-                            (
-                                (pl.col("Country") == "CN") & (pl.col("Capfactor") < 1) &
-                                (
-                                    pl.col("Instrument_Name").str.contains("'A'") |
-                                    pl.col("Instrument_Name").str.contains("(CCS)")
-                                ))
-                        )
-
-    elif date < datetime.date(2022,9,19):
-        Chinese_Securities = temp_Emerging.filter(
-                            (
-                                (pl.col("Country") == "CN") & (pl.col("Capfactor") < 1) &
-                                (
-                                    pl.col("Instrument_Name").str.contains("'A'") |
-                                    pl.col("Instrument_Name").str.contains("(CCS)")
-                                )))
-        
-    else:
-        Chinese_Securities = temp_Emerging.filter(
-                            ((pl.col("Exchange") == 'Stock Exchange of Hong Kong - SSE Securities') |
-                            (pl.col("Exchange") == 'Stock Exchange of Hong Kong - SZSE Securities')) & 
-                            (pl.col("Country") == "CN"))
-
-    return temp_Emerging
-
-##################################
 #########Index Continuity#########
 ##################################
 def Index_Continuity(TopPercentage_Securities, TopPercentage, Segment: pl.Utf8, temp_Emerging, country, Standard_Index):

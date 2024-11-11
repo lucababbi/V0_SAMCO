@@ -1,6 +1,6 @@
 import polars as pl
 
-Small_Index = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\90-99259950\Small_Index_Security_Level_CNTarget_0.9_0.9925_0.995_20241105.csv").with_columns(
+Small_Index = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\90-9939955\Small_Index_Security_Level_CNTarget_0.9_0.993_0.9955_20241105.csv").with_columns(
     pl.col("Date").cast(pl.Date)
 ).drop("Instrument_Name_right")
 
@@ -42,5 +42,5 @@ Recap_Weight = (
 from datetime import datetime
 current_datetime = datetime.today().strftime('%Y%m%d')
 
-Recap_Count.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\90-99259950\Recap_Count_Small_Index_" + current_datetime + ".csv")
-Recap_Weight.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\90-99259950\Recap_Weight_Small_Index_" + current_datetime + ".csv")
+Recap_Count.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\90-9939955\Recap_Count_Small_Index_" + current_datetime + ".csv")
+Recap_Weight.write_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\90-9939955\Recap_Weight_Small_Index_" + current_datetime + ".csv")

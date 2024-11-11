@@ -2,7 +2,7 @@ import polars as pl
 import numpy as np
 
 # Load data and parse the 'Date' column
-Time_Series = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Metrics\Input\21136_TE.csv", separator=";").with_columns(
+Time_Series = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Metrics\Input\Tests\21160_TE.csv", separator=";").with_columns(
     pl.col("Date").str.strptime(pl.Date, "%m/%d/%Y")
 ).select(pl.col(["Date", "MSCIPriceUSD", "Close"]))
 
@@ -51,4 +51,4 @@ monthly_returns = monthly_returns.with_columns([
 
 # Display the monthly returns with rolling tracking errors
 print(monthly_returns[["Rolling_Tracking_Error_1Y", "Rolling_Tracking_Error_3Y", "Rolling_Tracking_Error_27M"]])
-monthly_returns[["Rolling_Tracking_Error_1Y", "Rolling_Tracking_Error_3Y", "Rolling_Tracking_Error_27M"]].write_clipboard()
+monthly_returns[["year", "month", "Rolling_Tracking_Error_1Y", "Rolling_Tracking_Error_3Y", "Rolling_Tracking_Error_27M"]].write_clipboard()
