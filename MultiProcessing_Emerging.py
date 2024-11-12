@@ -18,6 +18,9 @@ def Carve_Out_Small():
 def iStudio_Creator():
     import iStudio_Creator
 
+def Remove_Shadow_AllCap():
+    import Remove_ALLCAP_Shadow
+
 # Main entry point
 if __name__ == '__main__':
 
@@ -40,16 +43,21 @@ if __name__ == '__main__':
     Process_2.join()
 
     # Create and Start Process_3 after Process_2 is finished
-    Process_3 = Process(target=Remove_CN_A)
+    Process_3 = Process(target=Remove_Shadow_AllCap)
     Process_3.start()
     Process_3.join()
 
     # Create and Start Process_4 after Process_3 is finished
-    Process_4 = Process(target=Carve_Out_Small)
+    Process_4 = Process(target=Remove_CN_A)
     Process_4.start()
     Process_4.join()
 
     # Create and Start Process_5 after Process_4 is finished
-    Process_5 = Process(target=iStudio_Creator)
+    Process_5 = Process(target=Carve_Out_Small)
     Process_5.start()
     Process_5.join()
+
+    # Create and Start Process_6 after Process_5 is finished
+    Process_6 = Process(target=iStudio_Creator)
+    Process_6.start()
+    Process_6.join()

@@ -9,7 +9,7 @@ current_datetime = os.getenv("current_datetime")
 GMSR_Upper_Buffer = float(os.getenv("GMSR_Upper_Buffer"))
 GMSR_Lower_Buffer = float(os.getenv("GMSR_Lower_Buffer"))
 
-AllCap = pl.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\AllCap_Index_Security_Level_{GMSR_Upper_Buffer}_{GMSR_Lower_Buffer}_" + current_datetime + ".csv").with_columns(
+AllCap = pl.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\AllCap_Index_Security_Level_{GMSR_Upper_Buffer}_{GMSR_Lower_Buffer}_" + current_datetime + "_NoShadow.csv").with_columns(
     pl.col("Date").cast(pl.Date)
 )
 
@@ -128,6 +128,6 @@ from datetime import datetime
 current_datetime = datetime.today().strftime('%Y%m%d')
 
 # Store the results
-Output.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\AllCap_Index_Security_Level_{GMSR_Upper_Buffer}_{GMSR_Lower_Buffer}_" + current_datetime + "_NoChinaASmall.csv")
+Output.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\AllCap_Index_Security_Level_{GMSR_Upper_Buffer}_{GMSR_Lower_Buffer}_" + current_datetime + "_NoShadow_NoChinaASmall.csv")
 # Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\All_Country\Recap_Count_AllCap_Index_Security_Level_ETF_Version_Coverage_Adjustment_" + current_datetime + ".csv")
 # Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\All_Country\Recap_Weight_AllCap_Index_Security_Level_ETF_Version_Coverage_Adjustment_" + current_datetime + ".csv")

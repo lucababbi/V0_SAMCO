@@ -1331,15 +1331,29 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
                         pl.lit("Deletion").alias("Size")
                     )
 
-    # Case where we land above the box #
+        # Case where we land above the box #
     elif TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] > Upper_GMSR:
 
         # Check if there are Companies in between the Upper and Lower GMSR
-        if len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff_Company") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR))) > 0:
-
-            TopPercentage_Extension = (
+        TopPercentage_Extension = (
+            temp_Country
+            .filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= Upper_GMSR)
+            .sort("Full_MCAP_USD_Cutoff_Company", descending=True)
+            .filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number"))))
+            .select([
+                "Date", 
+                "Internal_Number", 
+                "Instrument_Name", 
+                "ENTITY_QID", 
+                "Country", 
+                "Free_Float_MCAP_USD_Cutoff_Company", 
+                "Full_MCAP_USD_Cutoff_Company", 
+                "Weight_Cutoff", 
+                "CumWeight_Cutoff"
+            ])
+            .vstack(
                 temp_Country
-                .filter(pl.col("Full_MCAP_USD_Cutoff_Company") >= Upper_GMSR)
+                .filter(pl.col("Full_MCAP_USD_Cutoff_Company") < Upper_GMSR)
                 .sort("Full_MCAP_USD_Cutoff_Company", descending=True)
                 .filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number"))))
                 .select([
@@ -1353,81 +1367,29 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
                     "Weight_Cutoff", 
                     "CumWeight_Cutoff"
                 ])
-                .vstack(
-                    temp_Country
-                    .filter(pl.col("Full_MCAP_USD_Cutoff_Company") < Upper_GMSR)
-                    .sort("Full_MCAP_USD_Cutoff_Company", descending=True)
-                    .filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number"))))
-                    .select([
-                        "Date", 
-                        "Internal_Number", 
-                        "Instrument_Name", 
-                        "ENTITY_QID", 
-                        "Country", 
-                        "Free_Float_MCAP_USD_Cutoff_Company", 
-                        "Full_MCAP_USD_Cutoff_Company", 
-                        "Weight_Cutoff", 
-                        "CumWeight_Cutoff"
-                    ])
-                    .head(1)
-                )
+                .head(1)
             )
+        )
 
-            TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Standard").alias("Size")
-                            )
-            
-            TopPercentage_Extension = TopPercentage_Extension.with_columns(
-                                    pl.lit("Addition").alias("Size")
-                            )
-            
-            # Merge the initial Frame with the additions
-            if len(TopPercentage_Extension) > 0:
-                TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))
+        TopPercentage = TopPercentage.with_columns(
+                                pl.lit("All_Cap").alias("Size")
+                        )
+        
+        TopPercentage_Extension = TopPercentage_Extension.with_columns(
+                                pl.lit("Addition").alias("Size")
+                        )
+        
+        # Merge the initial Frame with the additions
+        if len(TopPercentage_Extension) > 0:
+            TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))
 
-            TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Above - Companies in between Upper and Lower GMSR").alias("Case")
-                    )
-
-            # Save DataFrame to Excel
-            if Excel_Recap_Rebalancing == True and country == Country_Plotting:
-                TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
-
-        # In case there are no Companies in between the Upper and Lower GMSR
-        elif len(temp_Country.filter((pl.col("Full_MCAP_USD_Cutoff_Company") <= Upper_GMSR) & (pl.col("Full_MCAP_USD_Cutoff_Company") >= Lower_GMSR))) == 0:
-            TopPercentage_Extension = (
-                temp_Country
-                .filter((pl.col("Full_MCAP_USD_Cutoff_Company") >= Upper_GMSR) & (pl.col("CumWeight_Cutoff") >= Left_Limit))
-                .sort("Full_MCAP_USD_Cutoff_Company", descending=True)
-                .filter(~pl.col("Internal_Number").is_in(TopPercentage.select(pl.col("Internal_Number"))))
-                .select([
-                    "Date", 
-                    "Internal_Number", 
-                    "Instrument_Name", 
-                    "ENTITY_QID", 
-                    "Country", 
-                    "Free_Float_MCAP_USD_Cutoff_Company", 
-                    "Full_MCAP_USD_Cutoff_Company", 
-                    "Weight_Cutoff", 
-                    "CumWeight_Cutoff"
-                ]))
-            
-            TopPercentage_Extension = TopPercentage_Extension.with_columns(
-                                    pl.lit("Addition").alias("Size")
-                            )
-            
-            # Merge the initial Frame with the additions
-            if len(TopPercentage_Extension) > 0:
-                TopPercentage = TopPercentage.vstack(TopPercentage_Extension.select(TopPercentage.columns))
-            else:
-                TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Addition").alias("Size")
+        TopPercentage = TopPercentage.with_columns(
+                                pl.lit("Above - Companies in between Upper and Lower GMSR").alias("Case")
                 )
 
-            TopPercentage = TopPercentage.with_columns(
-                                    pl.lit("Above - No Companies in between Upper and Lower GMSR").alias("Case"),
-                                    pl.lit("Addition").alias("Size")
-                    )
+        # Save DataFrame to Excel
+        if Excel_Recap_Rebalancing == True and country == Country_Plotting:
+            TopPercentage.to_pandas().to_excel(writer, sheet_name=f'{date}_{country}', index=False)
         
     # Case where we below above the box #
     elif TopPercentage.tail(1).select("Full_MCAP_USD_Cutoff_Company").to_numpy()[0][0] < Lower_GMSR:
