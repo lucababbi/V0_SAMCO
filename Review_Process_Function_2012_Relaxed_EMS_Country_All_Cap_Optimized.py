@@ -775,13 +775,15 @@ def Minimum_FreeFloat_Country(TopPercentage, temp_Country, Lower_GMSR, Upper_GMS
                             )
                         )
         
-        # Add information for Company_Full_MCAP to the Security level Frame
-        TopPercentage_Securities = TopPercentage_Securities.join(TopPercentage.select(pl.col(["ENTITY_QID", "Full_MCAP_USD_Cutoff_Company"])),
-                                                                on=["ENTITY_QID"], how="left")
+        if date == Starting_Date:
         
-        # Remove those Companies where Size == NULL and Full_MCAP_USD_Cutoff_Company > Country_Cutoff
-        TopPercentage_Securities = TopPercentage_Securities.filter(~(pl.col("Size").is_null()) & 
-                                    (pl.col("Full_MCAP_USD_Cutoff_Company") > Country_Cutoff)).drop("Full_MCAP_USD_Cutoff_Company")
+            # Add information for Company_Full_MCAP to the Security level Frame
+            TopPercentage_Securities = TopPercentage_Securities.join(TopPercentage.select(pl.col(["ENTITY_QID", "Full_MCAP_USD_Cutoff_Company"])),
+                                                                    on=["ENTITY_QID"], how="left")
+            
+            # Remove those Companies where Size == NULL and Full_MCAP_USD_Cutoff_Company > Country_Cutoff
+            TopPercentage_Securities = TopPercentage_Securities.filter(~(pl.col("Size").is_null()) & 
+                                        (pl.col("Full_MCAP_USD_Cutoff_Company") > Country_Cutoff)).drop("Full_MCAP_USD_Cutoff_Company")
         
         # Check for Shadow_Company
         TopPercentage_Securities = TopPercentage_Securities.with_columns(

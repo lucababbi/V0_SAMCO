@@ -12,7 +12,7 @@ Standard_Index = pl.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\
     pl.col("Date").cast(pl.Date)
 )
 
-All_Cap = pl.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Developed\Output\AllCap_Index_Security_Level_{GMSR_Upper_Buffer}_{GMSR_Lower_Buffer}_" + current_datetime + "_NoChinaASmall.csv").with_columns(
+All_Cap = pl.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Developed\Output\AllCap_Index_Security_Level_{GMSR_Upper_Buffer}_{GMSR_Lower_Buffer}_" + current_datetime + "_NoShadow.csv").with_columns(
     pl.col("Date").cast(pl.Date)
 )
 

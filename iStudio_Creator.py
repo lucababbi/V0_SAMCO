@@ -15,7 +15,7 @@ CapFactor = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\
 ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).filter(pl.col("Date") < datetime.date(2024,6,24)).to_pandas()
 
 # Capfactor adjusted for JUN-SEP 2024
-FreeFloat_TMI = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Capfactor_TMI.csv", separator=";",
+FreeFloat_TMI = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Capfactor_TMI.csv", separator=",",
                 infer_schema=False).with_columns(
                 pl.col("validDate").str.strptime(pl.Date, "%Y%m%d").alias("validDate"),
                 pl.col("freeFloat").cast(pl.Float64).alias("Free_Float_TMI")

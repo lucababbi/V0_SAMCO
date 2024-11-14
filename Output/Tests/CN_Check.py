@@ -1,11 +1,12 @@
 import polars as pl
+import datetime
 
 # Load CSVs with Date column casting
-AllCap_NoShadow = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\AllCap_Index_Security_Level_0.993_0.9955_20241111_NoShadow.csv").with_columns(pl.col("Date").cast(pl.Date))
-AllCap_NoShadow_NoChina = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\AllCap_Index_Security_Level_0.993_0.9955_20241111_NoShadow_NoChinaASmall.csv").with_columns(pl.col("Date").cast(pl.Date))
-Standard = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\Standard_Index_Security_Level_CNTarget_0.9_20241111.csv").with_columns(pl.col("Date").cast(pl.Date))
-Standard_Shadow = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\Standard_Index_Security_Level_Shadows_CNTarget_0.9_20241111.csv").with_columns(pl.col("Date").cast(pl.Date))
-Small = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\Small_Index_Security_Level_CNTarget_0.9_0.993_0.9955_20241111.csv").with_columns(pl.col("Date").cast(pl.Date))
+AllCap_NoShadow = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\AllCap_Index_Security_Level_0.993_0.9955_20241114_NoShadow.csv").with_columns(pl.col("Date").cast(pl.Date))
+AllCap_NoShadow_NoChina = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\AllCap_Index_Security_Level_0.993_0.9955_20241114_NoShadow_NoChinaASmall.csv").with_columns(pl.col("Date").cast(pl.Date))
+Standard = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\Standard_Index_Security_Level_CNTarget_0.9_20241114.csv").with_columns(pl.col("Date").cast(pl.Date))
+Standard_Shadow = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\Standard_Index_Security_Level_Shadows_CNTarget_0.9_20241114.csv").with_columns(pl.col("Date").cast(pl.Date))
+Small = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\Small_Index_Security_Level_CNTarget_0.9_0.993_0.9955_20241114.csv").with_columns(pl.col("Date").cast(pl.Date))
 
 # Function to create recap count and filter for Country "CN"
 def create_recap(df, frame_name, country="CN"):
@@ -45,5 +46,5 @@ Recap_Pivoted = (
     .sort("Date")              # Sort by Date for easier readability
 )
 
-print(Recap_Pivoted)
-Recap_Pivoted.write_clipboard()
+print(Recap_Pivoted.filter(pl.col("Date")>=datetime.date(2019,3,18)))
+Recap_Pivoted.filter(pl.col("Date")>=datetime.date(2019,3,18)).write_clipboard()
