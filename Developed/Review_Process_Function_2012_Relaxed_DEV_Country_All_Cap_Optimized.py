@@ -19,11 +19,11 @@ Starting_Date = date(2012, 6, 18)
 Upper_Limit = 1.15
 Lower_Limit = 0.50
 
-Percentage = 0.995
-Left_Limit = Percentage - 0.005
+Percentage = 0.999
+Left_Limit = Percentage - 0.001
 Right_Limit = 1.00
 
-Threshold_NEW = 0.15
+Threshold_NEW = 0.20
 Threshold_OLD = 0.05
 
 FOR_FF_Screen = 0.15
@@ -371,7 +371,7 @@ def Turnover_Check(Frame: pl.DataFrame, Pivot_TOR: pl.DataFrame, Threshold_NEW, 
             Frame = Frame.with_columns(
                                         pl.when(
                                             pl.col("Internal_Number").is_in(
-                                                Standard_Index.filter(pl.col("Date") == Previous_Date).select(pl.col("Internal_Number"))
+                                                Screened_Securities.filter(pl.col("Date") == Previous_Date).select(pl.col("Internal_Number"))
                                             )
                                         )
                                         .then(pl.lit(Threshold_NEW))
@@ -747,6 +747,9 @@ def Fill_Chairs(temp_Country, Companies_To_Fill, Country_Cutoff, Country_Cutoff_
         return TopPercentage.head(Companies_To_Fill).with_columns(
             pl.col("Shadow_Company").fill_null(True)
         )
+    
+    # Third priority: Add priority 3 to priority 2
+
 
 ##################################
 ##Minimum FreeFloatCountry Level##
@@ -1197,7 +1200,7 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
 
     # Adjust the Left & Right Limit based on each Country
     Country_Adjustment =  Percentage
-
+    
     #################
     # Case Analysis #
     #################
@@ -1633,8 +1636,8 @@ Output_Count_Standard_Index = pl.DataFrame({
 Screened_Securities = pl.DataFrame({
                                     "Date": pl.Series([], dtype=pl.Date),
                                     "Internal_Number": pl.Series([], dtype=pl.Utf8),
-                                    "Segment": pl.Series([], dtype=pl.Utf8)
-})
+                                    "Segment": pl.Series([], dtype=pl.Utf8),
+                                    "Country": pl.Series([], dtype=pl.Utf8)})
 
 EMS_Frame = pl.DataFrame({
                         "Date": pl.Series([], dtype=pl.Date),
@@ -1665,7 +1668,7 @@ Small_Index = pl.DataFrame({
 })
 
 with pd.ExcelWriter(Output_File, engine='xlsxwriter') as writer:
-    for date in Emerging.select(["Date"]).unique().sort("Date").to_series():
+    for date in Developed.select(["Date"]).unique().sort("Date").to_series():
 
         # Status
         print(date)
@@ -2226,7 +2229,7 @@ Recap_Count_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Project
 Recap_Weight_Standard.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Developed\Output\Recap_Weight_AllCap_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
 # GMSR_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Test\GMSR_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
 # EMS_Frame.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Test\EMS_Frame_{Percentage}_ETF_Version_Coverage_Adjustment_{Coverage_Adjustment}_" + current_datetime + ".csv")
-
+Screened_Securities.write_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Developed\Output\Screened_Securities_" + current_datetime + ".csv")
 # Delete .PNG from main folder
 Main_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO"
 

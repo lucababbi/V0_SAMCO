@@ -2,7 +2,7 @@ import polars as pl
 import numpy as np
 
 # Load data and parse the 'Date' column
-Time_Series = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Metrics\Input\Tests\TE_TEST_SC.csv", separator=";").with_columns(
+Time_Series = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Metrics\Input\Tests\21619_TE.csv", separator=";").with_columns(
     pl.col("Date").str.strptime(pl.Date, "%m/%d/%Y")
 ).select(pl.col(["Date", "MSCIPriceUSD", "Close"]))
 

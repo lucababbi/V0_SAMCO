@@ -343,7 +343,7 @@ def Turnover_Check(Frame: pl.DataFrame, Pivot_TOR: pl.DataFrame, Threshold_NEW, 
             Frame = Frame.with_columns(
                                         pl.when(
                                             pl.col("Internal_Number").is_in(
-                                                Standard_Index.filter(pl.col("Date") == Previous_Date).select(pl.col("Internal_Number"))
+                                                Screened_Securities.filter(pl.col("Date") == Previous_Date).select(pl.col("Internal_Number"))
                                             )
                                         )
                                         .then(pl.lit(Threshold_NEW))
@@ -1606,8 +1606,8 @@ Output_Count_Standard_Index = pl.DataFrame({
 Screened_Securities = pl.DataFrame({
                                     "Date": pl.Series([], dtype=pl.Date),
                                     "Internal_Number": pl.Series([], dtype=pl.Utf8),
-                                    "Segment": pl.Series([], dtype=pl.Utf8)
-})
+                                    "Segment": pl.Series([], dtype=pl.Utf8),
+                                    "Country": pl.Series([], dtype=pl.Utf8)})
 
 EMS_Frame = pl.DataFrame({
                         "Date": pl.Series([], dtype=pl.Date),

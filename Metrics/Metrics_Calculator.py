@@ -61,7 +61,7 @@ def calculate_metrics(df, csv_name):
     return metrics_df
 
 # Load data from CSV
-csv_file_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Metrics\Input\Tests\21358_TE.csv"
+csv_file_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Metrics\Input\Tests\21619_TE.csv"
 csv_name = os.path.splitext(os.path.basename(csv_file_path))[0]
 df = pd.read_csv(csv_file_path, sep=";")[["Date", "Close"]]
 

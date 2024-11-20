@@ -38,7 +38,7 @@ CapFactor_JUNSEP = FreeFloat_SW.join(FreeFloat_TMI.select(pl.col(["validDate", "
 CapFactor = pd.concat([CapFactor, CapFactor_JUNSEP])
 
 # Create the iStudio input
-Index = pd.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Developed\Output\Standard_Index_Security_Level_CNTarget_0.9_20241112.csv", parse_dates=["Date"]).query("Date >= '2019-03-18'")
+Index = pd.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Developed\Output\AllCap_Index_Security_Level_0.99_0.9925_20241119_NoShadow.csv", parse_dates=["Date"]).query("Date >= '2019-03-18'")
 
 # Filter for needed columns
 Frame = Index[["Internal_Number", "SEDOL", "ISIN", "Date"]]
@@ -64,7 +64,7 @@ current_datetime = datetime.today().strftime('%Y%m%d')
 Frame.to_csv(
         os.path.join(
             r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Developed\Output", 
-            current_datetime + "_STANDARD_ETF.csv"
+            current_datetime + "_ALLCAP_ETF.csv"
         ), 
         index=False, 
         lineterminator="\n", 
