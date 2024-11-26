@@ -1170,15 +1170,15 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
         Left_Limit = Country_Adjustment - (0.05 / Country_Coverage.filter(pl.col("Country") == country).select(pl.col("Coverage")).to_numpy()[0][0])
         Right_Limit = Country_Adjustment + (0.05 / Country_Coverage.filter(pl.col("Country") == country).select(pl.col("Coverage")).to_numpy()[0][0])
 
-        if (country == "KR") | (country == "TW"):
+        if country == "KR":
             Country_Adjustment = Percentage / 0.975
             Left_Limit = Country_Adjustment - (0.05 / 0.975)
             Right_Limit = Country_Adjustment + (0.05 / 0.975)
 
         elif country == "TH":
-            Country_Adjustment = Percentage / 0.90
-            Left_Limit = Country_Adjustment - (0.05 / 0.90)
-            Right_Limit = Country_Adjustment + (0.05 / 0.90)
+            Country_Adjustment = Percentage / 0.88
+            Left_Limit = Country_Adjustment - (0.05 / 0.88)
+            Right_Limit = 1
 
         elif country == "MX":
             Country_Adjustment = Percentage / 0.95
@@ -1199,6 +1199,11 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
             Country_Adjustment = Percentage
             Left_Limit = 0.80
             Right_Limit = 0.90
+
+        elif country == "TW":
+            Country_Adjustment = 0.80
+            Left_Limit = 0.75
+            Right_Limit = 0.85
 
         if Right_Limit > 1: Right_Limit = 1 # Adjust it in case of being higher than 100%
     else:
@@ -1408,15 +1413,12 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
 
 # Select columns to read from the Parquets
 Columns = ["Date", "Index_Symbol", "Index_Name", "Internal_Number", "ISIN", "SEDOL", "RIC", "Instrument_Name", 
-           "Country", "Currency", "Exchange", "ICB", "Free_Float", "Capfactor", "Shares", "Close_unadjusted_local", "FX_local_to_Index_Currency"]
+           "Country", "Currency", "Exchange", "ICB", "Free_Float", "Capfactor"]
 
 # Developed Universe
 Developed = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\SWDACGV.parquet", columns=Columns).with_columns([
                             pl.col("Free_Float").cast(pl.Float64),
                             pl.col("Capfactor").cast(pl.Float64),
-                            pl.col("Shares").cast(pl.Float64),
-                            pl.col("Close_unadjusted_local").cast(pl.Float64),
-                            pl.col("FX_local_to_Index_Currency").cast(pl.Float64),
                             pl.col("Date").cast(pl.Date)
                             ])
 
@@ -1424,11 +1426,20 @@ Developed = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SA
 Emerging = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\SWEACGV.parquet", columns=Columns).with_columns([
                             pl.col("Free_Float").cast(pl.Float64),
                             pl.col("Capfactor").cast(pl.Float64),
-                            pl.col("Shares").cast(pl.Float64),
-                            pl.col("Close_unadjusted_local").cast(pl.Float64),
-                            pl.col("FX_local_to_Index_Currency").cast(pl.Float64),
                             pl.col("Date").cast(pl.Date)
                             ])
+
+# GCC Extra
+GCC = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\GCC.parquet").with_columns([
+                            pl.col("Free_Float").cast(pl.Float64),
+                            pl.col("Capfactor").cast(pl.Float64),
+                            pl.col("Date").cast(pl.Date),
+                            pl.col("ICB").cast(pl.Utf8),
+                            pl.col("Exchange").cast(pl.Utf8)
+                            ])
+
+# Merge Emerging with GCC
+Emerging = Emerging.vstack(GCC)
 
 # Entity_ID for matching Companies
 Entity_ID = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Entity_ID\Entity_ID.parquet").select(pl.col(["ENTITY_QID", "STOXX_ID",

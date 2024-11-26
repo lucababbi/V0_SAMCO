@@ -7,7 +7,7 @@ def calculate_metrics(df, csv_name):
     df.sort_index(inplace=True)
     
     # Calculate daily returns
-    df['Return'] = df['Close'].pct_change()
+    df['Return'] = df['MSCIPriceUSD'].pct_change()
 
     # Function to calculate annualized return
     def annualized_return(total_return, periods):
@@ -47,7 +47,7 @@ def calculate_metrics(df, csv_name):
 
     for period_name, period_df in periods.items():
         if len(period_df) > 1:
-            total_return = period_df['Close'].iloc[-1] / period_df['Close'].iloc[0] - 1
+            total_return = period_df['MSCIPriceUSD'].iloc[-1] / period_df['MSCIPriceUSD'].iloc[0] - 1
             periods_in_year = len(period_df) / 252  # Assuming 252 trading days in a year
             
             metrics[f'{period_name} Return (actual)'] = total_return * 100
@@ -61,9 +61,9 @@ def calculate_metrics(df, csv_name):
     return metrics_df
 
 # Load data from CSV
-csv_file_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Metrics\Input\Tests\21619_TE.csv"
+csv_file_path = r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Metrics\Input\Tests\TE_APG.csv"
 csv_name = os.path.splitext(os.path.basename(csv_file_path))[0]
-df = pd.read_csv(csv_file_path, sep=";")[["Date", "Close"]]
+df = pd.read_csv(csv_file_path, sep=";")[["Date", "MSCIPriceUSD"]]
 
 
 # Ensure 'Date' column is parsed as datetime and set as index

@@ -1376,15 +1376,12 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
 
 # Select columns to read from the Parquets
 Columns = ["Date", "Index_Symbol", "Index_Name", "Internal_Number", "ISIN", "SEDOL", "RIC", "Instrument_Name", 
-           "Country", "Currency", "Exchange", "ICB", "Free_Float", "Capfactor", "Shares", "Close_unadjusted_local", "FX_local_to_Index_Currency"]
+           "Country", "Currency", "Exchange", "ICB", "Free_Float", "Capfactor"]
 
 # Developed Universe
 Developed = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\SWDACGV.parquet", columns=Columns).with_columns([
                             pl.col("Free_Float").cast(pl.Float64),
                             pl.col("Capfactor").cast(pl.Float64),
-                            pl.col("Shares").cast(pl.Float64),
-                            pl.col("Close_unadjusted_local").cast(pl.Float64),
-                            pl.col("FX_local_to_Index_Currency").cast(pl.Float64),
                             pl.col("Date").cast(pl.Date)
                             ])
 
@@ -1392,11 +1389,20 @@ Developed = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SA
 Emerging = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\SWEACGV.parquet", columns=Columns).with_columns([
                             pl.col("Free_Float").cast(pl.Float64),
                             pl.col("Capfactor").cast(pl.Float64),
-                            pl.col("Shares").cast(pl.Float64),
-                            pl.col("Close_unadjusted_local").cast(pl.Float64),
-                            pl.col("FX_local_to_Index_Currency").cast(pl.Float64),
                             pl.col("Date").cast(pl.Date)
                             ])
+
+# GCC Extra
+GCC = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\GCC.parquet").with_columns([
+                            pl.col("Free_Float").cast(pl.Float64),
+                            pl.col("Capfactor").cast(pl.Float64),
+                            pl.col("Date").cast(pl.Date),
+                            pl.col("ICB").cast(pl.Utf8),
+                            pl.col("Exchange").cast(pl.Utf8)
+                            ])
+
+# Merge Emerging with GCC
+Emerging = Emerging.vstack(GCC)
 
 # Entity_ID for matching Companies
 Entity_ID = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Entity_ID\Entity_ID.parquet").select(pl.col(["ENTITY_QID", "STOXX_ID",
