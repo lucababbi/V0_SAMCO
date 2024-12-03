@@ -1167,33 +1167,33 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
     if Coverage_Adjustment == True:
         Country_Adjustment =  Percentage / Country_Coverage.filter(pl.col("Country") == country).select(pl.col("Coverage")).to_numpy()[0][0]
 
-        Left_Limit = Country_Adjustment - (0.05 / Country_Coverage.filter(pl.col("Country") == country).select(pl.col("Coverage")).to_numpy()[0][0])
-        Right_Limit = Country_Adjustment + (0.05 / Country_Coverage.filter(pl.col("Country") == country).select(pl.col("Coverage")).to_numpy()[0][0])
+        Left_Limit = Country_Adjustment - (0.05)
+        Right_Limit = Country_Adjustment + (0.05)
 
-        if country == "KR":
+        if (country == "KR") | (country == "TW"):
             Country_Adjustment = Percentage / 0.975
-            Left_Limit = Country_Adjustment - (0.05 / 0.975)
-            Right_Limit = Country_Adjustment + (0.05 / 0.975)
-
+            Left_Limit = Country_Adjustment - (0.05)
+            Right_Limit = Country_Adjustment + (0.05)
+            
         elif country == "TH":
-            Country_Adjustment = Percentage / 0.88
-            Left_Limit = Country_Adjustment - (0.05 / 0.88)
-            Right_Limit = 1
+            Country_Adjustment = Percentage / 0.90
+            Left_Limit = Country_Adjustment - (0.05)
+            Right_Limit = Country_Adjustment + (0.05)
 
         elif country == "MX":
             Country_Adjustment = Percentage / 0.95
-            Left_Limit = Country_Adjustment - (0.05 / 0.95)
-            Right_Limit = Country_Adjustment + (0.05 / 0.95)
+            Left_Limit = Country_Adjustment - (0.05)
+            Right_Limit = Country_Adjustment + (0.05)
 
         elif country == "IN":
             Country_Adjustment = Percentage / 0.985
-            Left_Limit = Country_Adjustment - (0.05 / 0.985)
-            Right_Limit = Country_Adjustment + (0.05 / 0.985)
+            Left_Limit = Country_Adjustment - (0.05)
+            Right_Limit = Country_Adjustment + (0.05)
 
         elif country == "CN":
             Country_Adjustment = Percentage / CN_Target_Percentage
-            Left_Limit = Country_Adjustment - (0.05 / CN_Target_Percentage)
-            Right_Limit = Country_Adjustment + (0.05 / CN_Target_Percentage)
+            Left_Limit = Country_Adjustment - (0.05)
+            Right_Limit = Country_Adjustment + (0.05)
 
         elif country == "PL":
             Country_Adjustment = Percentage
@@ -1201,9 +1201,9 @@ def Index_Rebalancing_Box(Frame: pl.DataFrame, SW_ACALLCAP, Output_Count_Standar
             Right_Limit = 0.90
 
         elif country == "TW":
-            Country_Adjustment = 0.80
-            Left_Limit = 0.75
-            Right_Limit = 0.85
+            Country_Adjustment = 0.75
+            Left_Limit = 0.70
+            Right_Limit = 0.80
 
         if Right_Limit > 1: Right_Limit = 1 # Adjust it in case of being higher than 100%
     else:
@@ -1436,7 +1436,7 @@ GCC = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0
                             pl.col("Date").cast(pl.Date),
                             pl.col("ICB").cast(pl.Utf8),
                             pl.col("Exchange").cast(pl.Utf8)
-                            ])
+                            ]).filter(pl.col("Date") >= datetime.date(2019,6,24))
 
 # Merge Emerging with GCC
 Emerging = Emerging.vstack(GCC)

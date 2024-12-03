@@ -10,7 +10,7 @@ GMSR_Upper_Buffer = float(os.getenv("GMSR_Upper_Buffer"))
 GMSR_Lower_Buffer = float(os.getenv("GMSR_Lower_Buffer"))
 
 # Capfactor from SWACALLCAP
-CapFactor = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Capfactor_SWACALLCAP.csv").with_columns(
+CapFactor = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Capfactor_SWACALLCAP_Extended.csv").with_columns(
     pl.col("Date").cast(pl.Date),
 ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).filter(pl.col("Date") < datetime.date(2024,6,24)).to_pandas()
 
@@ -40,10 +40,21 @@ CapFactor_JUNSEP = FreeFloat_SW.join(FreeFloat_TMI.select(pl.col(["validDate", "
                                      ).select(pl.col(["Date", "Internal_Number", "Capfactor"])
                                      ).to_pandas()
 
+# GCC Capfactor
+GCC_Capfactor = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\GCC.parquet").with_columns(
+    [
+        pl.col("Date").cast(pl.Date),
+        pl.col("Internal_Number").cast(pl.Utf8),
+        pl.col("Capfactor").cast(pl.Float64)
+    ]
+).select(pl.col(["Date", "Internal_Number", "Capfactor"])).to_pandas()
+
+CapFactor = pd.concat([CapFactor, CapFactor_JUNSEP, GCC_Capfactor])
+
 CapFactor = pd.concat([CapFactor, CapFactor_JUNSEP])
 
 # Create the iStudio input
-Small_Index = pd.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\Small_Index_Security_Level_CNTarget_{CN_Target_Percentage}_{GMSR_Upper_Buffer}_{GMSR_Lower_Buffer}_" + current_datetime + ".csv", parse_dates=["Date"]).query("Date >= '2019-03-18'")
+Small_Index = pd.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\Small_Index_Security_Level_CNTarget_{CN_Target_Percentage}_{GMSR_Upper_Buffer}_{GMSR_Lower_Buffer}_" + current_datetime + ".csv", parse_dates=["Date"])
 
 # Filter for needed columns
 Frame = Small_Index[["Internal_Number", "SEDOL", "ISIN", "Date"]]

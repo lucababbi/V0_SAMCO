@@ -1399,7 +1399,7 @@ GCC = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0
                             pl.col("Date").cast(pl.Date),
                             pl.col("ICB").cast(pl.Utf8),
                             pl.col("Exchange").cast(pl.Utf8)
-                            ])
+                            ]).filter(pl.col("Date") >= datetime.date(2019,6,24))
 
 # Merge Emerging with GCC
 Emerging = Emerging.vstack(GCC)

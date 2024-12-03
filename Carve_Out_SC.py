@@ -16,9 +16,7 @@ All_Cap = pl.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V
     pl.col("Date").cast(pl.Date)
 )
 
-Small_Index = All_Cap.join(Standard_Index.select(pl.col(["Date", "Internal_Number"])), on=["Date", "Internal_Number"], how="anti").filter(
-    pl.col("Date") >= datetime.date(2019,3,18)
-)
+Small_Index = All_Cap.join(Standard_Index.select(pl.col(["Date", "Internal_Number"])), on=["Date", "Internal_Number"], how="anti")
 
 # Get current date formatted as YYYYMMDD_HHMMSS
 from datetime import datetime

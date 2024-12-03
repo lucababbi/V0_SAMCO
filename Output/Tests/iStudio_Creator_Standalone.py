@@ -5,7 +5,7 @@ import datetime
 import os
 
 # Capfactor from SWACALLCAP
-CapFactor = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Capfactor_SWACALLCAP.csv").with_columns(
+CapFactor = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Universe\Capfactor_SWACALLCAP_Extended.csv").with_columns(
     pl.col("Date").cast(pl.Date),
 ).select(pl.col(["Date", "Internal_Number", "Capfactor"])).filter(pl.col("Date") < datetime.date(2024,6,24)).to_pandas()
 
@@ -48,7 +48,10 @@ GCC_Capfactor = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Project
 CapFactor = pd.concat([CapFactor, CapFactor_JUNSEP, GCC_Capfactor])
 
 # Create the iStudio input
-Index = pd.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\AllCap_Index_Security_Level_0.993_0.9955_20241120_NoShadow_NoChinaASmall.csv", parse_dates=["Date"]).query("Date >= '2019-03-18'")
+Index = pd.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\Standard_Index_Security_Level_CNTarget_0.904255337_20241202.csv", parse_dates=["Date"])
+
+# EX_CHINA
+# Index = Index.query("Country != 'CN'")
 
 # Filter for needed columns
 Frame = Index[["Internal_Number", "SEDOL", "ISIN", "Date"]]
@@ -74,7 +77,7 @@ current_datetime = datetime.today().strftime('%Y%m%d')
 Frame.to_csv(
         os.path.join(
             r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests", 
-            current_datetime + "_ALLCAP_ETF.csv"
+            current_datetime + "_STANDARD_ETF.csv"
         ), 
         index=False, 
         lineterminator="\n", 

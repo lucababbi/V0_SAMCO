@@ -9,6 +9,9 @@ def AllCapIndex():
 def StandardIndex():
     import Review_Process_Function_2012_Relaxed_EMS_Country_Standard_Optmized
 
+def LargeIndex():
+    import Review_Process_Function_2012_Relaxed_EMS_Country_Large_Optmized
+
 def Remove_CN_A():
     import Remove_CN_A_SMALL_ALLCAP
 
@@ -21,11 +24,14 @@ def iStudio_Creator():
 def Remove_Shadow_AllCap():
     import Remove_ALLCAP_Shadow
 
+def Carve_Out_Large():
+    import Carve_Out_Large
+
 # Main entry point
 if __name__ == '__main__':
 
     # Define Global Variables
-    os.environ["CN_Target_Percentage"] = str(0.90)
+    os.environ["CN_Target_Percentage"] = str(0.904255337)
     os.environ["GMSR_Upper_Buffer"] = str(0.993)
     os.environ["GMSR_Lower_Buffer"] = str(0.9955)
     os.environ["current_datetime"] = datetime.today().strftime('%Y%m%d')
@@ -61,3 +67,13 @@ if __name__ == '__main__':
     Process_6 = Process(target=iStudio_Creator)
     Process_6.start()
     Process_6.join()
+
+    # Create and start Process_7 after Process_6 is finished
+    Process_7 = Process(target=LargeIndex)
+    Process_7.start()
+    Process_7.join()
+
+    # Create and start Process_8 after Process_7 is finished
+    Process_8 = Process(target=Carve_Out_Large)
+    Process_8.start()
+    Process_8.join()
