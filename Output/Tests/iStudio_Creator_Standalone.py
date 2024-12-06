@@ -48,7 +48,7 @@ GCC_Capfactor = pl.read_parquet(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Project
 CapFactor = pd.concat([CapFactor, CapFactor_JUNSEP, GCC_Capfactor])
 
 # Create the iStudio input
-Index = pd.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\Standard_Index_Security_Level_CNTarget_0.904255337_20241202.csv", parse_dates=["Date"])
+Index = pd.read_csv(rf"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Output\Tests\Standard_Index_Security_Level_CNTarget_0.904255337_20241206.csv", parse_dates=["Date"])
 
 # EX_CHINA
 # Index = Index.query("Country != 'CN'")

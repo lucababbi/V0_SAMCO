@@ -2,23 +2,23 @@ import polars as pl
 import numpy as np
 
 # Load data and parse the 'Date' column
-Time_Series = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Metrics\Input\Developed_EU_MID-Cap.csv", separator=";").with_columns(
+Time_Series = pl.read_csv(r"C:\Users\lbabbi\OneDrive - ISS\Desktop\Projects\SAMCO\V0_SAMCO\Metrics\Input\Presentation\21865_TE.csv", separator=";").with_columns(
     pl.col("Date").str.strptime(pl.Date, "%m/%d/%Y")
-).select(pl.col(["Date", "MSCI-Price", "STOXX-Price"]))
+).select(pl.col(["Date", "MSCIPriceUSD", "Close"]))
 
 # Group by month and calculate mean returns for MSCI and V130_MCAP_Cutoff
 monthly_returns_MSCI = Time_Series.with_columns([
     pl.col("Date").dt.year().alias("year"),
     pl.col("Date").dt.month().alias("month")
 ]).group_by(["year", "month"]).agg([
-    pl.col("MSCI-Price").last()
+    pl.col("MSCIPriceUSD").last()
 ]).sort(by=["year", "month"], descending=False)
 
 monthly_returns_SAMCO = Time_Series.with_columns([
     pl.col("Date").dt.year().alias("year"),
     pl.col("Date").dt.month().alias("month")
 ]).group_by(["year", "month"]).agg([
-    pl.col("STOXX-Price").last()
+    pl.col("Close").last()
 ]).sort(by=["year", "month"], descending=False)
 
 # Join MSCI and SAMCO monthly returns
@@ -26,8 +26,8 @@ monthly_returns = monthly_returns_MSCI.join(monthly_returns_SAMCO, on=["year", "
 
 # Calculate monthly returns for MSCI and V130_MCAP_Cutoff
 monthly_returns = monthly_returns.with_columns(
-    (pl.col("MSCI-Price") / pl.col("MSCI-Price").shift(1) - 1).alias("Returns_MSCI"),
-    (pl.col("STOXX-Price") / pl.col("STOXX-Price").shift(1) - 1).alias("Returns_SAMCO"),
+    (pl.col("MSCIPriceUSD") / pl.col("MSCIPriceUSD").shift(1) - 1).alias("Returns_MSCI"),
+    (pl.col("Close") / pl.col("Close").shift(1) - 1).alias("Returns_SAMCO"),
 ).with_columns(
     (pl.col("Returns_MSCI") - pl.col("Returns_SAMCO")).alias("Difference_SAMCO")
 )

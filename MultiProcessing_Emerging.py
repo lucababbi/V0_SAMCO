@@ -29,7 +29,7 @@ def Carve_Out_Large():
 
 # Main entry point
 if __name__ == '__main__':
-
+ 
     # Define Global Variables
     os.environ["CN_Target_Percentage"] = str(0.904255337)
     os.environ["GMSR_Upper_Buffer"] = str(0.993)
@@ -48,32 +48,32 @@ if __name__ == '__main__':
     Process_2.start()
     Process_2.join()
 
-    # Create and Start Process_3 after Process_2 is finished
-    Process_3 = Process(target=Remove_Shadow_AllCap)
-    Process_3.start()
-    Process_3.join()
+    # # Create and Start Process_3 after Process_2 is finished
+    # Process_3 = Process(target=Remove_Shadow_AllCap)
+    # Process_3.start()
+    # Process_3.join()
 
-    # Create and Start Process_4 after Process_3 is finished
-    Process_4 = Process(target=Remove_CN_A)
-    Process_4.start()
-    Process_4.join()
+    # # Create and Start Process_4 after Process_3 is finished
+    # Process_4 = Process(target=Remove_CN_A)
+    # Process_4.start()
+    # Process_4.join()
 
-    # Create and Start Process_5 after Process_4 is finished
-    Process_5 = Process(target=Carve_Out_Small)
-    Process_5.start()
-    Process_5.join()
+    # # Create and Start Process_5 after Process_4 is finished
+    # Process_5 = Process(target=Carve_Out_Small)
+    # Process_5.start()
+    # Process_5.join()
 
-    # Create and Start Process_6 after Process_5 is finished
-    Process_6 = Process(target=iStudio_Creator)
-    Process_6.start()
-    Process_6.join()
+    # # Create and Start Process_6 after Process_5 is finished
+    # Process_6 = Process(target=iStudio_Creator)
+    # Process_6.start()
+    # Process_6.join()
 
-    # Create and start Process_7 after Process_6 is finished
-    Process_7 = Process(target=LargeIndex)
-    Process_7.start()
-    Process_7.join()
+    # # Create and start Process_7 after Process_6 is finished
+    # Process_7 = Process(target=LargeIndex)
+    # Process_7.start()
+    # Process_7.join()
 
-    # Create and start Process_8 after Process_7 is finished
-    Process_8 = Process(target=Carve_Out_Large)
-    Process_8.start()
-    Process_8.join()
+    # # Create and start Process_8 after Process_7 is finished
+    # Process_8 = Process(target=Carve_Out_Large)
+    # Process_8.start()
+    # Process_8.join()
